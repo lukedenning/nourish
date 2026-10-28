@@ -72,10 +72,10 @@ async function main(){
  // The top sync button loads the same remote account without import.
  run('resetFood();syncWeightForm();unsaved=null');
  db.get('account-a').document.foods.push({id:'from-phone',date:'2026-10-28',title:'Phone entry',portion:'1',calories:125,protein:12});db.get('account-a').revision++;
- await el('syncNow').onclick();assert.ok(run('state.foods.some(f=>f.id==="from-phone")'));assert.match(el('syncNotice').textContent,/Available on all your devices/);assert.match(el('status').textContent,/All saved entries are synced/);
- el('title').value='Unsubmitted food';await el('syncNow').onclick();assert.equal(el('title').value,'Unsubmitted food');assert.match(el('status').textContent,/Finish adding/);run('resetFood()');
- failSave=true;el('title').value='Draft after failure';el('calories').value='10';el('protein').value='1';await el('foodForm').onsubmit({preventDefault(){}});assert.match(el('syncNotice').textContent,/Not saved/);failSave=false;
- await el('syncNow').onclick();assert.match(el('syncNotice').textContent,/Not saved/);assert.match(el('status').textContent,/has not been saved/);
+ await el('syncNow').onclick();assert.ok(run('state.foods.some(f=>f.id==="from-phone")'));assert.equal(el('syncNow').textContent,'Synced');assert.equal(el('syncNow').dataset.synced,'true');assert.match(el('status').textContent,/All saved entries are synced/);
+ el('title').value='Unsubmitted food';handlers.input[0]();assert.equal(el('syncNow').textContent,'Sync now');await el('syncNow').onclick();assert.equal(el('title').value,'Unsubmitted food');assert.match(el('status').textContent,/Finish adding/);run('resetFood()');
+ failSave=true;el('title').value='Draft after failure';el('calories').value='10';el('protein').value='1';await el('foodForm').onsubmit({preventDefault(){}});assert.equal(el('syncNow').textContent,'Sync now');assert.equal(el('syncNow').dataset.synced,'false');failSave=false;
+ await el('syncNow').onclick();assert.equal(el('syncNow').textContent,'Sync now');assert.equal(el('syncNow').dataset.synced,'false');assert.match(el('status').textContent,/has not been saved/);
  assert.equal(el('title').value,'Draft after failure');
  // Daily notes save to the account, remain separate by date, and preserve drafts on failure.
  run('resetFood();syncWeightForm();unsaved=null;notesDirty=false');el('date').value='2026-10-28';el('date').onchange();

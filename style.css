@@ -42,3 +42,6 @@ main>.headerActions{justify-content:flex-start;margin-top:20px;max-width:none}ma
 
 /* Keep all nutrition inputs the same size. */
 .fields{grid-template-columns:repeat(3,minmax(0,1fr))}.macroInputs{grid-template-columns:repeat(3,minmax(0,1fr))}.itemMacros form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}.itemMacros label{min-width:0}.itemMacros form button{grid-column:1/-1;justify-self:start}@media(max-width:800px){.fields,.macroInputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Compact sync status beside the wordmark on every screen. */
+header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>#syncNow{flex:0 0 auto;white-space:nowrap;background:#3a2848;border-color:#684b7d;color:#e7eee6;padding:10px 14px;min-width:88px}header>#syncNow[data-synced="true"]{background:#ff9b3d;border-color:#ff9b3d;color:#28112d}header>#syncNow[data-synced="true"]:hover{background:#ffb265}@media(max-width:350px){header{gap:8px}header>#syncNow{padding:9px 10px;min-width:78px}.brand{gap:7px}}

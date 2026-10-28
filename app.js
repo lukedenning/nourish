@@ -8,6 +8,7 @@ const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title
 function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');if(s.notes!==undefined&&(s.notes===null||typeof s.notes!=='object'||Array.isArray(s.notes)||!Object.entries(s.notes).every(([date,text])=>validDate(date)&&typeof text==='string'&&text.length<=5000)))throw Error('Invalid daily notes');return s;}
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
+let cloudSynced=false;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
 let weightDirty=false,lastWeightUnit='lb',notesDirty=false;
 $('date').value=localDate(new Date());
@@ -22,18 +23,23 @@ function journalAccess(){
   $('refreshCloud').disabled=busy;
   $('signOut').disabled=busy;
   $('syncNow').disabled=busy;
-  $('syncNow').textContent=cloud?.user?'Sync now':'Sign in';
+  updateSyncButton();
 }
 function setBusy(value){busy=value;journalAccess();}
 function notify(message){$('status').textContent=message;}
 function setSyncStatus(message){
   $('syncStatus').textContent=message;
-  const signedIn=Boolean(cloud?.user);
-  const problem=/unavailable|Not saved|Refresh required|required|Connection/.test(message);
-  $('syncBanner').dataset.state=problem?'error':message.includes('Saving')||message.includes('Syncing')?'working':signedIn?'saved':'signed-out';
-  $('syncNotice').textContent=problem?message+' · Check your connection and try again.':!signedIn?'Sign in to sync your saved food, weight entries and notes across devices.':message==='Saved to cloud'?'Saved to cloud · Available on all your devices.':message;
+  cloudSynced=message==='Saved to cloud';
+  updateSyncButton();
 }
 
+function updateSyncButton(){
+  const synced=Boolean(cloud?.user&&loaded&&cloudSynced&&!busy&&!unsaved&&!dirty());
+  $('syncNow').textContent=synced?'Synced':'Sync now';
+  $('syncNow').dataset.synced=String(synced);
+  $('syncNow').title=synced?'Saved to cloud and available on all your devices':'Sync saved entries with your other devices';
+  $('syncNow').setAttribute('aria-label',synced?'Synced: saved to cloud and available on all your devices':'Sync now');
+}
 function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value||$('carbs').value||$('fats').value||document.querySelectorAll('.itemMacros[open]').length);}
 async function refreshCloud(manual=false){
   if(document.querySelectorAll('.itemMacros[open]').length){if(manual)notify('Save or close the expanded food values before refreshing.');return false;}
@@ -81,7 +87,7 @@ function syncNoteForm(){
   $('notesDate').textContent=date;
   $('dayNotes').value=state.notes?.[date]||'';
   $('noteCount').textContent=fmt($('dayNotes').value.length)+' / 5,000';
-  $('noteStatus').textContent=state.notes?.[date]?'Saved for '+date+'.':'No note saved for this day.';
+  $('noteStatus').textContent=state.notes?.[date]?'Saved for '+date+'.':'No note saved for this day.';updateSyncButton();
 }
 const weightText=kg=>`${fmt(kg*LB)} lbs / ${fmt(kg)} kg`;
 function updateWeightPreview(){
@@ -93,7 +99,7 @@ function syncWeightForm(){
   weightDirty=false;lastWeightUnit='lb';$('unit').value='lb';
   const current=state.weights.find(w=>w.date===$('date').value);
   $('weight').value=current?String(Math.round(current.kg*LB*100)/100):'';
-  updateWeightPreview();
+  updateWeightPreview();updateSyncButton();
 }
 function weightChartMarkup(records,start,end){
   const points=records.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
@@ -154,7 +160,7 @@ $('foodForm').onsubmit=async e=>{
   if($('saveFav').checked){const {date,...fav}=food;fav.id=id();next.favourites.push(fav);}
   if(await save(next,edit?'Food updated.':'Food added.'))resetFood();
 };
-function resetFood(){$('foodForm').reset();$('carbs').value='';$('fats').value='';$('foodMacros').open=false;$('editId').value='';$('addFood').textContent='Add food';$('cancelEdit').hidden=true;}
+function resetFood(){$('foodForm').reset();$('carbs').value='';$('fats').value='';$('foodMacros').open=false;$('editId').value='';$('addFood').textContent='Add food';$('cancelEdit').hidden=true;updateSyncButton();}
 $('cancelEdit').onclick=resetFood;
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||busy)return;
@@ -345,6 +351,8 @@ async function syncFromTop(){
     else notify('All saved entries are synced. Open Nourish with the same account on your other devices.');
   }
 }
+document.addEventListener('input',updateSyncButton);
+document.addEventListener('change',updateSyncButton);
 $('syncNow').onclick=syncFromTop;
 $('refreshCloud').onclick=syncFromTop;
 function reloadPage(){
