@@ -93,11 +93,16 @@ async function main(){
  run('resetFood();notesDirty=false');el('date').value='2026-10-28';el('date').onchange();
  el('title').value='Zero protein example';el('portion').value='1 portion';el('calories').value='95';el('protein').value='';el('saveFav').checked=true;await el('foodForm').onsubmit({preventDefault(){}});
  assert.equal(run('state.foods.find(f=>f.title==="Zero protein example").protein'),0);assert.equal(run('state.favourites.find(f=>f.title==="Zero protein example").protein'),0);assert.equal(db.get('account-a').document.foods.find(f=>f.title==='Zero protein example').protein,0);
+ // Optional macros survive cloud saves, regular foods and inline updates.
+ run('resetFood()');el('title').value='Macro example';el('calories').value='250';el('protein').value='15';el('carbs').value='30';el('fats').value='8';el('saveFav').checked=true;await el('foodForm').onsubmit({preventDefault(){}});
+ assert.equal(db.get('account-a').document.foods.find(f=>f.title==='Macro example').carbs,30);assert.equal(run('state.favourites.find(f=>f.title==="Macro example").fats'),8);
+ const macroId=run('state.foods.find(f=>f.title==="Macro example").id');await handlers.submit[0]({target:{dataset:{macros:macroId},elements:{carbs:{value:'32'},fats:{value:'9'}}},preventDefault(){}});assert.equal(db.get('account-a').document.foods.find(f=>f.id===macroId).carbs,32);
+ assert.throws(()=>run('validate({...emptyJournal(),foods:[{...state.foods[0],carbs:-1}]})'));assert.match(el('foodList').innerHTML,/data-macros=/);assert.match(el('stats').innerHTML,/macroTotals/);
  console.log('Passed: blank protein saves and syncs as zero, including regular foods;');
  // The consumed-food sidebar always follows the selected day, even in a month view.
  run("state=emptyJournal();state.foods=[{id:'day-a',date:'2026-10-28',title:'Oats',portion:'1 bowl',calories:100,protein:10},{id:'day-b',date:'2026-10-28',title:'<b>Yoghurt</b>',portion:'200 g',calories:200,protein:20},{id:'other-day',date:'2026-10-29',title:'Other day meal',portion:'1 plate',calories:900,protein:90}];view='month'");
  el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);
- el('date').value='2026-10-29';run('render()');assert.match(el('consumedFoods').innerHTML,/Other day meal/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Oats/);assert.equal(el('consumedDate').textContent,'2026-10-29');
+ el('date').value='2026-10-29';run('render()');assert.match(el('consumedFoods').innerHTML,/Other day meal/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Oats/);assert.equal(el('consumedDate').textContent,run("localDate(new Date())==='2026-10-29'?'Today':'2026-10-29'"));
  el('date').value='2026-10-30';run('render()');assert.match(el('consumedFoods').innerHTML,/No foods logged/);assert.equal(el('consumedTotals').innerHTML,'');
  console.log('Passed: selected-day consumed-food list, independent of period, with totals, escaping and empty state;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');

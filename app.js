@@ -4,7 +4,7 @@ const localDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}
 const fmt=n=>new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(n);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const validDate=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(new Date(s+'T12:00:00'))&&localDate(new Date(s+'T12:00:00'))===s;
-const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title.trim().length>0&&x.title.length<=100&&typeof x.portion==='string'&&x.portion.length<=60&&Number.isFinite(x.calories)&&x.calories>=0&&x.calories<=100000&&Number.isFinite(x.protein)&&x.protein>=0&&x.protein<=10000;
+const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title.trim().length>0&&x.title.length<=100&&typeof x.portion==='string'&&x.portion.length<=60&&Number.isFinite(x.calories)&&x.calories>=0&&x.calories<=100000&&Number.isFinite(x.protein)&&x.protein>=0&&x.protein<=10000&&['carbs','fats'].every(k=>x[k]===undefined||(Number.isFinite(x[k])&&x[k]>=0&&x[k]<=10000));
 function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');if(s.notes!==undefined&&(s.notes===null||typeof s.notes!=='object'||Array.isArray(s.notes)||!Object.entries(s.notes).every(([date,text])=>validDate(date)&&typeof text==='string'&&text.length<=5000)))throw Error('Invalid daily notes');return s;}
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
@@ -32,8 +32,9 @@ function setSyncStatus(message){
   $('syncNotice').textContent=problem?message+' · Check your connection and try again.':!signedIn?'Sign in to sync your saved food, weight entries and notes across devices.':message==='Saved to cloud'?'Saved to cloud · Available on all your devices.':message;
 }
 
-function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value);}
+function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value||$('carbs').value||$('fats').value||document.querySelectorAll('.itemMacros[open]').length);}
 async function refreshCloud(manual=false){
+  if(document.querySelectorAll('.itemMacros[open]').length){if(manual)notify('Save or close the expanded food values before refreshing.');return false;}
   if(!cloud?.user||busy||(!manual&&dirty()))return false;
   setBusy(true);const generation=epoch;
   if(manual)setSyncStatus('Syncing saved entries…');
@@ -123,14 +124,14 @@ function renderWeightChart(){
 }
 
 function render(){const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const changeStart=view==='day'?localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))):start;const changeWeights=state.weights.filter(w=>w.date>=changeStart&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const change=changeWeights.length>1?changeWeights.at(-1).kg-changeWeights[0].kg:null;
-$('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat"><label>${label}</label><strong>${value}</strong><small>${note}</small></div>`).join('');
+$('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat">${label==='Protein'?`<details class="macroTotals"><summary><span>${label}</span><strong>${value}</strong><small>${note} · expand</small></summary><p>Carbs <b>${fmt(foods.reduce((s,f)=>s+(f.carbs||0),0))} g</b></p><p>Fats <b>${fmt(foods.reduce((s,f)=>s+(f.fats||0),0))} g</b></p></details>`:`<label>${label}</label><strong>${value}</strong><small>${note}</small>`}</div>`).join('');
 $('period').textContent=start===end?start:`${start} – ${end}`;
 const consumed=state.foods.filter(f=>f.date===date);
 $('consumedDate').textContent=date===localDate(new Date())?'Today':date;
 $('consumedFoods').innerHTML=consumed.length?consumed.map(f=>`<li class="consumedFood"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div></li>`).join(''):'<li class="empty">No foods logged for this day yet.</li>';
 $('consumedTotals').innerHTML=consumed.length?`<span>${consumed.length} ${consumed.length===1?'entry':'entries'}</span><strong>${fmt(consumed.reduce((sum,f)=>sum+f.calories,0))} kcal · ${fmt(consumed.reduce((sum,f)=>sum+f.protein,0))} g protein</strong>`:'';
 
-$('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
+$('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><details class="itemMacros"><summary>Carbs &amp; fats</summary><form data-macros="${esc(f.id)}"><label>Carbs (g)<input name="carbs" aria-label="Carbs for ${esc(f.title)}" type="number" min="0" max="10000" step="any" value="${f.carbs??0}"></label><label>Fats (g)<input name="fats" aria-label="Fats for ${esc(f.title)}" type="number" min="0" max="10000" step="any" value="${f.fats??0}"></label><button class="primary">Save carbs &amp; fats</button></form></details><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
 $('favourites').innerHTML=state.favourites.length?state.favourites.map(f=>`<div class="fav"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')} · ${fmt(f.calories)} kcal · ${fmt(f.protein)} g</small></div><button data-quick="${esc(f.id)}" aria-label="Add ${esc(f.title)}">+</button><button class="icon" data-unfav="${esc(f.id)}" aria-label="Remove favourite ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Save a food as a regular to find it here.</p>';
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
 $('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Update weigh-in':'Save weigh-in';
@@ -143,13 +144,13 @@ $('foodForm').onsubmit=async e=>{
   e.preventDefault();if(busy||!validDate($('date').value))return;
   const edit=$('editId').value,old=state.foods.find(f=>f.id===edit);
   if(edit&&!old){notify('This food was removed on another device. Cancel the edit to add it again.');return;}
-  const food={id:edit||id(),date:old?old.date:$('date').value,title:$('title').value.trim(),portion:$('portion').value.trim(),calories:Number($('calories').value),protein:$('protein').value.trim()===''?0:Number($('protein').value)};
+  const food={id:edit||id(),date:old?old.date:$('date').value,title:$('title').value.trim(),portion:$('portion').value.trim(),calories:Number($('calories').value),protein:$('protein').value.trim()===''?0:Number($('protein').value),carbs:Number($('carbs').value),fats:Number($('fats').value)};
   if(!nutrition(food))return;const next=structuredClone(state);
   if(edit)next.foods=next.foods.map(f=>f.id===edit?food:f);else next.foods.push(food);
   if($('saveFav').checked){const {date,...fav}=food;fav.id=id();next.favourites.push(fav);}
   if(await save(next,edit?'Food updated.':'Food added.'))resetFood();
 };
-function resetFood(){$('foodForm').reset();$('editId').value='';$('addFood').textContent='Add food';$('cancelEdit').hidden=true;}
+function resetFood(){$('foodForm').reset();$('carbs').value='';$('fats').value='';$('foodMacros').open=false;$('editId').value='';$('addFood').textContent='Add food';$('cancelEdit').hidden=true;}
 $('cancelEdit').onclick=resetFood;
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||busy)return;
@@ -159,8 +160,16 @@ document.addEventListener('click',async e=>{
   if(b.dataset.quick){const f=state.favourites.find(f=>f.id===b.dataset.quick);if(!f||!validDate($('date').value))return;next.foods.push({...f,id:id(),date:$('date').value});await save(next,'Usual portion added.');}
   if(b.dataset.unfav){next.favourites=next.favourites.filter(f=>f.id!==b.dataset.unfav);await save(next,'Regular food removed.');}
   if(b.dataset.delete){next.foods=next.foods.filter(f=>f.id!==b.dataset.delete);if(await save(next,'Food removed.')&&$('editId').value===b.dataset.delete)resetFood();}
-  if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;$('editId').value=f.id;for(const k of ['title','portion','calories','protein'])$(k).value=f[k];$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('title').focus();}
+  if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;$('editId').value=f.id;for(const k of ['title','portion','calories','protein','carbs','fats'])$(k).value=f[k]??'';$('foodMacros').open=false;$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('title').focus();}
 });
+document.addEventListener('submit',async e=>{
+  const form=e.target;if(!form.dataset?.macros)return;e.preventDefault();if(busy||!loaded)return;
+  const carbs=Number(form.elements.carbs.value),fats=Number(form.elements.fats.value);
+  if(![carbs,fats].every(n=>Number.isFinite(n)&&n>=0&&n<=10000))return;
+  const next=structuredClone(state),food=next.foods.find(f=>f.id===form.dataset.macros);if(!food)return;
+  food.carbs=carbs;food.fats=fats;await save(next,'Carbs and fats updated.');
+});
+$('protein').onclick=()=>{$('foodMacros').open=true;};
 $('date').onchange=()=>{
   if(!validDate($('date').value))return;
   if(notesDirty&&!confirm('Discard your unsaved note before switching dates?')){$('date').value=activeJournalDate;return;}
