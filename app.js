@@ -164,6 +164,13 @@ let chartDays=view==='day'?daysBetween(localDate(new Date(new Date(date+'T12:00:
 const totals=chartDays.map(d=>({date:d,cal:state.foods.filter(f=>f.date===d).reduce((s,f)=>s+f.calories,0)})),max=Math.max(1,...totals.map(t=>t.cal));
 $('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily calorie totals; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${Math.max(1,t.cal/max*100)}%" title="${t.date}: ${fmt(t.cal)} kcal"><span>${chartDays.length<10||i%Math.max(5,Math.ceil(chartDays.length/8))===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
 $('history').innerHTML=chartDays.slice().reverse().map(d=>{const fs=state.foods.filter(f=>f.date===d),w=state.weights.find(w=>w.date===d);return `<tr><td>${d}</td><td>${fs.length?fmt(fs.reduce((s,f)=>s+f.calories,0)):'—'}</td><td>${fs.length?fmt(fs.reduce((s,f)=>s+f.protein,0))+' g':'—'}</td><td>${w?weightText(w.kg):'—'}</td></tr>`;}).join('');}
+function calculatePortion(){
+  const per100=$('per100').value,portion=$('calcPortion').value;
+  const value=Number(per100)/100*Number(portion);
+  $('calcResult').value=per100.trim()!==''&&portion.trim()!==''&&Number(per100)>=0&&Number(portion)>=0&&Number.isFinite(value)?String(Number(value.toFixed(6))):'';
+}
+$('per100').oninput=calculatePortion;
+$('calcPortion').oninput=calculatePortion;
 $('foodForm').onsubmit=async e=>{
   e.preventDefault();if(busy||!validDate($('date').value))return;
   const edit=$('editId').value,old=state.foods.find(f=>f.id===edit);

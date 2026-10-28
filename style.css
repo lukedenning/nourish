@@ -51,3 +51,5 @@ header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>
 .regularSearch{flex-shrink:0;margin:0 0 14px;width:100%;font-size:16px}@media(max-width:800px){aside>.green{height:420px}}
 
 .followToday{display:block;margin:8px auto 0;font-size:11px;padding:5px 10px}#resolveOffline{border-color:#ff9b3d;color:#ffb265}
+
+.portionCalculator{margin:16px 0;font-size:13px}.portionCalculator>summary{cursor:pointer;color:#ff9b3d;font-family:Manrope,system-ui,sans-serif;font-weight:700}.calculatorFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.calculatorFields label{min-width:0;font-size:12px}.calculatorFields input{margin-top:7px;font-size:16px;padding:10px 8px}.calculatorFields input[readonly]{color:#ffb265;background:#30203f}@media(max-width:420px){.calculatorFields{gap:7px}.calculatorFields label{font-size:11px}}
