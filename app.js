@@ -18,13 +18,24 @@ function journalAccess(){
   $('import').disabled=!loaded||busy;
   $('refreshCloud').disabled=busy;
   $('signOut').disabled=busy;
+  $('syncNow').disabled=busy;
+  $('syncNow').textContent=cloud?.user?'Sync now':'Sign in';
 }
 function setBusy(value){busy=value;journalAccess();}
 function notify(message){$('status').textContent=message;}
+function setSyncStatus(message){
+  $('syncStatus').textContent=message;
+  const signedIn=Boolean(cloud?.user);
+  const problem=/unavailable|Not saved|Refresh required|required|Connection/.test(message);
+  $('syncBanner').dataset.state=problem?'error':message.includes('Saving')||message.includes('Syncing')?'working':signedIn?'saved':'signed-out';
+  $('syncNotice').textContent=problem?message+' · Check your connection and try again.':!signedIn?'Sign in to sync your saved food and weight entries across devices.':message==='Saved to cloud'?'Saved to cloud · Available on all your devices.':message;
+}
+
 function dirty(){return Boolean($('title').value||weightDirty||$('editId').value);}
 async function refreshCloud(manual=false){
   if(!cloud?.user||busy||(!manual&&dirty()))return false;
   setBusy(true);const generation=epoch;
+  if(manual)setSyncStatus('Syncing saved entries…');
   try{
     const row=await cloud.load();
     if(generation!==epoch)return false;
@@ -32,30 +43,30 @@ async function refreshCloud(manual=false){
     if(!Number.isSafeInteger(row.revision)||row.revision<0)throw Error('Invalid cloud revision');
     const changed=cloud.revision!==row.revision;
     cloud.accept(row);state=row.document;loaded=true;render();
-    $('syncStatus').textContent='Saved to cloud';
+    setSyncStatus(unsaved?'Not saved':'Saved to cloud');
     if(manual)notify('Cloud journal refreshed. Your form entries are unchanged.');
     else if(changed)notify('Journal updated from another device.');
     updateMigration();return true;
-  }catch(error){if(generation===epoch){$('syncStatus').textContent='Cloud unavailable';notify('Could not load your cloud journal. Check your connection, then refresh.');}return false;}
+  }catch(error){if(generation===epoch){setSyncStatus('Cloud unavailable');notify('Could not load your cloud journal. Check your connection, then refresh.');}return false;}
   finally{if(generation===epoch)setBusy(false);}
 }
 async function save(next,message){
   if(!cloud?.user||!loaded){notify('Sign in and load your journal before saving.');return false;}
   if(busy){notify('Please wait for the current cloud request.');return false;}
   setBusy(true);const generation=epoch;unsaved=null;
-  $('syncStatus').textContent='Saving…';
+  setSyncStatus('Saving…');
   try{
     validate(next);await cloud.save(next);
     if(generation!==epoch)return false;
-    state=next;render();$('syncStatus').textContent='Saved to cloud';notify(message+' Saved to your account.');return true;
+    state=next;render();setSyncStatus('Saved to cloud');notify(message+' Saved to your account.');return true;
   }catch(error){
     if(generation!==epoch)return false;
     unsaved=next;
     if(error.conflict){
-      try{const row=await cloud.load();if(generation!==epoch)return false;validate(row.document);cloud.accept(row);state=row.document;render();$('syncStatus').textContent='Latest cloud version loaded';}
-      catch{ $('syncStatus').textContent='Refresh required'; }
+      try{const row=await cloud.load();if(generation!==epoch)return false;validate(row.document);cloud.accept(row);state=row.document;render();setSyncStatus('Latest cloud version loaded');}
+      catch{ setSyncStatus('Refresh required'); }
       notify('Another device changed your journal. This change was not saved. Review the latest entries and try again; your form entries are still here. You can export the unsaved version.');
-    }else{$('syncStatus').textContent='Not saved';notify('Could not save to the cloud. Check your connection and try again. Your form entries are still here.');}
+    }else{setSyncStatus('Not saved');notify('Could not save to the cloud. Check your connection and try again. Your form entries are still here.');}
     return false;
   }finally{if(generation===epoch)setBusy(false);}
 }
@@ -202,8 +213,8 @@ async function activate(session){
   $('authStatus').textContent='';$('passwordStatus').textContent='';
   for(const key of ['loginPassword','newPassword','confirmPassword'])$(key).value='';
   $('passwordSetup').open=false;notify('');
-  if(user){$('syncStatus').textContent='Loading your journal…';await refreshCloud(true);}
-  else $('syncStatus').textContent='Sign in to sync';
+  if(user){setSyncStatus('Loading your journal…');await refreshCloud(true);}
+  else setSyncStatus('Sign in to sync');
 }
 function updateEmailButton(){
   const remaining=Math.max(0,Math.ceil((emailRetryAt-Date.now())/1000));
@@ -268,7 +279,17 @@ $('signOut').onclick=async()=>{
   if(error){notify('Could not sign out. Please try again.');return;}
   await activate(null);
 };
-$('refreshCloud').onclick=()=>refreshCloud(true);
+async function syncFromTop(){
+  if(!cloud?.user){$('accountPanel').scrollIntoView({behavior:'smooth',block:'center'});$('passwordEmail').focus({preventScroll:true});return;}
+  const hasDraft=dirty(),hasUnsaved=Boolean(unsaved);
+  if(await refreshCloud(true)){
+    if(hasUnsaved)notify('Latest saved entries loaded. Your previous change has not been saved; review it and try saving again.');
+    else if(hasDraft)notify('Saved entries are synced. Finish adding your food or saving your weigh-in to sync the form entries too.');
+    else notify('All saved entries are synced. Open Nourish with the same account on your other devices.');
+  }
+}
+$('syncNow').onclick=syncFromTop;
+$('refreshCloud').onclick=syncFromTop;
 async function initialise(){
   journalAccess();render();
   try{
@@ -281,6 +302,6 @@ async function initialise(){
     setInterval(()=>{if(document.visibilityState==='visible')refreshCloud();},15000);
     window.addEventListener('focus',()=>refreshCloud());
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCloud();});
-  }catch(error){$('syncStatus').textContent='Connection unavailable';$('authStatus').textContent=error.message;}
+  }catch(error){setSyncStatus('Connection unavailable');$('authStatus').textContent=error.message;}
 }
 initialise();

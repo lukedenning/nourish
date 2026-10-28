@@ -65,6 +65,15 @@ async function main(){
  el('passwordEmail').value='test@example.invalid';el('loginPassword').value='synthetic-test-password';await el('passwordLoginForm').onsubmit({preventDefault(){}});assert.equal(passwordCalls,1);assert.equal(emailCalls,1);assert.equal(signOutCalls,0);assert.equal(el('loginPassword').value,'');assert.equal(run('loaded'),true);
  el('loginPassword').value='wrong';await el('passwordLoginForm').onsubmit({preventDefault(){}});assert.match(el('authStatus').textContent,/Check your email and password/);assert.equal(el('loginPassword').value,'');
  assert.ok(![...storage.values()].some(value=>String(value).includes('synthetic-test-password')),'Passwords must never be stored by the app');
+ // The top sync button loads the same remote account without import.
+ run('resetFood();syncWeightForm();unsaved=null');
+ db.get('account-a').document.foods.push({id:'from-phone',date:'2026-10-28',title:'Phone entry',portion:'1',calories:125,protein:12});db.get('account-a').revision++;
+ await el('syncNow').onclick();assert.ok(run('state.foods.some(f=>f.id==="from-phone")'));assert.match(el('syncNotice').textContent,/Available on all your devices/);assert.match(el('status').textContent,/All saved entries are synced/);
+ el('title').value='Unsubmitted food';await el('syncNow').onclick();assert.equal(el('title').value,'Unsubmitted food');assert.match(el('status').textContent,/Finish adding/);run('resetFood()');
+ failSave=true;el('title').value='Draft after failure';el('calories').value='10';el('protein').value='1';await el('foodForm').onsubmit({preventDefault(){}});assert.match(el('syncNotice').textContent,/Not saved/);failSave=false;
+ await el('syncNow').onclick();assert.match(el('syncNotice').textContent,/Not saved/);assert.match(el('status').textContent,/has not been saved/);
+ assert.equal(el('title').value,'Draft after failure');
+ console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');
  console.log('Passed: password sign-in without email, password setup validation and clearing, email-quota fallback, resend cooldown;');
  console.log('Passed: nutrition, favourites, edits, weight conversion, date boundaries, cloud reload, concurrent-device conflict, network failure, account isolation, signed-out writes, local migration, link validation.');

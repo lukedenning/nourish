@@ -13,9 +13,10 @@ Internet access is required to load and save your journal. Authentication tokens
 - Food title, portion, calories and grams of protein; edit and delete entries.
 - Regular foods with one-tap addition of their usual portion. Edit the added entry for different portions and nutrition.
 - Daily totals, Monday–Sunday weekly totals, calendar-month totals, and averages over days containing food entries.
-- A prominent daily weigh-in form, defaulting to lbs, with live kg conversion and editable weigh-ins for the selected date.
+- A daily weigh-in form below the calorie tracker, defaulting to lbs, with live kg conversion and editable weigh-ins for the selected date.
 - A weight line graph with pounds on the left axis and kilograms on the right. Daily view shows the last 30 days; Weekly and Monthly follow the selected week or month. Only recorded weigh-ins are plotted, with a table of exact values and a single-point state until a second weigh-in is recorded. Weight change uses the first and last weigh-ins in the graph period.
 - Calorie chart and exact daily nutrition/weight table. Daily view includes a trailing seven-day history.
+- A compact top sync notification and **Sync now** button, with account settings near the bottom. All saved entries are stored privately in Supabase and automatically loaded on other signed-in devices; GitHub hosts only the app code. No import is needed for cloud entries.
 - Cloud refresh every 15 seconds while visible, and on focus. Automatic refresh pauses when a form contains a draft. Manual refresh preserves form fields.
 - Revision checks prevent a stale device from silently overwriting newer changes. On conflict, reload the latest cloud journal, retain form fields, and ask the user to review and retry. The attempted version can be exported.
 - JSON backup export and validated import. Import explicitly replaces the journal for that account across all devices.
