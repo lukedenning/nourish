@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const empty=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
-const food=(id,title=id)=>({id,title,date:'2026-10-28',portion:'1',calories:100,protein:10,carbs:12,fats:4});
+const food=(id,title=id)=>({id,title,date:'2026-10-28',portion:'1',calories:100,protein:10,carbs:12,sugars:3,fats:4,saturates:1,fiber:2,salt:0.4});
 const storageMap=new Map();let storageFull=false,fail=false,sessionFails=false,casRace=false,rpcCalls=0;
 const storage={getItem:key=>storageMap.get(key)||null,setItem:(key,value)=>{if(storageFull)throw Error('Quota exceeded');storageMap.set(key,value);},removeItem:key=>storageMap.delete(key)};
 const db=new Map();let user={id:'a',email:'a@example.invalid'};
@@ -19,7 +19,7 @@ async function main(){
  let doc=empty();doc.foods.push(food('first'));doc.weights.push({date:'2026-10-28',kg:90});doc.notes['2026-10-28']='Original';row=await cloud.save(doc);assert.equal(row.pending,false);assert.equal(db.get('a').document.foods.length,1);
  // Save all record types offline and reopen from durable account-specific storage.
  fail=true;context.navigator.onLine=false;doc=structuredClone(row.document);doc.foods.push(food('offline'));doc.favourites.push(food('regular'));doc.weights[0].kg=89;doc.notes['2026-10-29']='Offline note';row=await cloud.save(doc);assert.equal(row.pending,true);assert.equal(db.get('a').document.foods.length,1);
- sessionFails=true;cloud=create();await cloud.session();row=await cloud.load();assert.equal(row.document.foods.length,2);assert.equal(row.document.weights[0].kg,89);assert.equal(row.document.notes['2026-10-29'],'Offline note');assert.equal(row.document.favourites.length,1);sessionFails=false;
+ sessionFails=true;cloud=create();await cloud.session();row=await cloud.load();assert.equal(row.document.foods.length,2);assert.equal(row.document.weights[0].kg,89);assert.equal(row.document.notes['2026-10-29'],'Offline note');assert.equal(row.document.favourites.length,1);assert.equal(row.document.foods[1].sugars,3);assert.equal(row.document.foods[1].saturates,1);assert.equal(row.document.foods[1].fiber,2);assert.equal(row.document.foods[1].salt,0.4);sessionFails=false;
  // Another device adds unrelated records; reconnect auto merges both copies.
  db.get('a').document.foods.push(food('remote'));db.get('a').document.notes['2026-10-30']='Remote note';db.get('a').revision++;
  fail=false;context.navigator.onLine=true;row=await cloud.load();assert.equal(row.pending,false);assert.equal(row.document.foods.length,3);assert.equal(row.document.notes['2026-10-30'],'Remote note');assert.equal(row.document.weights[0].kg,89);

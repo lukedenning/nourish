@@ -53,3 +53,8 @@ header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>
 .followToday{display:block;margin:8px auto 0;font-size:11px;padding:5px 10px}#resolveOffline{border-color:#ff9b3d;color:#ffb265}
 
 .portionCalculator{margin:16px 0;font-size:13px}.portionCalculator>summary{cursor:pointer;color:#ff9b3d;font-family:Manrope,system-ui,sans-serif;font-weight:700}.calculatorFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.calculatorFields label{min-width:0;font-size:12px}.calculatorFields input{margin-top:7px;font-size:16px;padding:10px 8px}.calculatorFields input[readonly]{color:#ffb265;background:#30203f}@media(max-width:420px){.calculatorFields{gap:7px}.calculatorFields label{font-size:11px}}
+
+/* Nutrition pairs: carbs/sugars, fats/saturates, fiber/salt. */
+.macroInputs{grid-template-columns:repeat(2,minmax(0,1fr))}.macroInputs input,.itemMacros input{font-size:16px}.macroTotalsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.macroTotals .macroTotalsGrid p{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin:8px 0 0;padding:8px;background:#1c1226;border-radius:7px;min-width:0}.macroTotalsGrid b{overflow-wrap:anywhere}.macroTotalsGrid span{font-size:11px}
+
+@media(min-width:801px){.macroInputs{width:calc(66.666667% - 4px)}}
