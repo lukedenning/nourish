@@ -39,3 +39,6 @@ header{display:flex;justify-content:space-between;align-items:center;padding-top
 .pullRefresh{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:100;background:#3b284a;color:#ffb265;border:1px solid #ff9b3d;border-radius:24px;padding:12px 20px;box-shadow:0 4px 20px #0008;font-size:13px;white-space:nowrap;pointer-events:none}@media(pointer:coarse){html,body{overscroll-behavior-y:none}}
 
 main>.headerActions{justify-content:flex-start;margin-top:20px;max-width:none}main>.headerActions button{width:auto}
+
+/* Keep all nutrition inputs the same size. */
+.fields{grid-template-columns:repeat(3,minmax(0,1fr))}.macroInputs{grid-template-columns:repeat(3,minmax(0,1fr))}.itemMacros form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}.itemMacros label{min-width:0}.itemMacros form button{grid-column:1/-1;justify-self:start}@media(max-width:800px){.fields,.macroInputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
