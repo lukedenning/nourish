@@ -131,6 +131,13 @@ function renderWeightChart(){
   $('weightHistory').innerHTML=points.length?points.slice().reverse().map(w=>`<tr><td>${w.date}</td><td>${fmt(w.kg*LB)}</td><td>${fmt(w.kg)}</td></tr>`).join(''):'<tr><td colspan="3">No weigh-ins in this period.</td></tr>';
 }
 
+function renderFavourites(){
+  const query=$('regularSearch').value.trim().toLocaleLowerCase();
+  const regulars=state.favourites.filter(f=>f.title.toLocaleLowerCase().includes(query));
+  $('favourites').innerHTML=regulars.length?regulars.map(f=>`<div class="fav"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')} · ${fmt(f.calories)} kcal · ${fmt(f.protein)} g</small></div><button data-quick="${esc(f.id)}" aria-label="Add ${esc(f.title)}">+</button><button class="icon" data-unfav="${esc(f.id)}" aria-label="Remove favourite ${esc(f.title)}">×</button></div>`).join(''):state.favourites.length?'<p class="empty">No regular foods match your search.</p>':'<p class="empty">Save a food as a regular to find it here.</p>';
+}
+$('regularSearch').oninput=renderFavourites;
+
 function render(){const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const changeStart=view==='day'?localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))):start;const changeWeights=state.weights.filter(w=>w.date>=changeStart&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const change=changeWeights.length>1?changeWeights.at(-1).kg-changeWeights[0].kg:null;
 $('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat">${label==='Protein'?`<details class="macroTotals"><summary><span>${label}</span><strong>${value}</strong><small>${note} · expand</small></summary><p>Carbs <b>${fmt(foods.reduce((s,f)=>s+(f.carbs||0),0))} g</b></p><p>Fats <b>${fmt(foods.reduce((s,f)=>s+(f.fats||0),0))} g</b></p></details>`:`<label>${label}</label><strong>${value}</strong><small>${note}</small>`}</div>`).join('');
 $('period').textContent=start===end?start:`${start} – ${end}`;
@@ -142,7 +149,7 @@ $('consumedFoods').innerHTML=consumed.length?consumed.map(f=>`<li class="consume
 $('consumedTotals').innerHTML=consumed.length?`<span>${consumed.length} ${consumed.length===1?'entry':'entries'}</span><strong>${fmt(consumed.reduce((sum,f)=>sum+f.calories,0))} kcal · ${fmt(consumed.reduce((sum,f)=>sum+f.protein,0))} g protein</strong>`:'';
 
 $('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><details class="itemMacros"><summary>Carbs &amp; fats</summary><form data-macros="${esc(f.id)}"><label>Carbs (g)<input name="carbs" aria-label="Carbs for ${esc(f.title)}" type="number" min="0" max="10000" step="any" value="${f.carbs??0}"></label><label>Fats (g)<input name="fats" aria-label="Fats for ${esc(f.title)}" type="number" min="0" max="10000" step="any" value="${f.fats??0}"></label><button class="primary">Save carbs &amp; fats</button></form></details><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
-$('favourites').innerHTML=state.favourites.length?state.favourites.map(f=>`<div class="fav"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')} · ${fmt(f.calories)} kcal · ${fmt(f.protein)} g</small></div><button data-quick="${esc(f.id)}" aria-label="Add ${esc(f.title)}">+</button><button class="icon" data-unfav="${esc(f.id)}" aria-label="Remove favourite ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Save a food as a regular to find it here.</p>';
+renderFavourites();
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
 $('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Update weigh-in':'Save weigh-in';
 if(!weightDirty)syncWeightForm();if(!notesDirty)syncNoteForm();renderWeightChart();
@@ -269,7 +276,7 @@ $('migrateLocal').onclick=async()=>{
 async function activate(session){
   const user=session?.user||null;
   if(user?.id===cloud.user?.id&&loaded)return;
-  epoch++;busy=false;loaded=false;unsaved=null;cloud.setUser(user);
+  epoch++;busy=false;loaded=false;unsaved=null;cloud.setUser(user);$('regularSearch').value='';
   state=emptyJournal();resetFood();notesDirty=false;activeJournalDate=$('date').value;weightDirty=false;$('weightForm').reset();render();journalAccess();
   $('signedOut').hidden=Boolean(user);$('signedIn').hidden=!user;
   $('accountEmail').textContent=user?.email||'';
