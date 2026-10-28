@@ -12,6 +12,8 @@ let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
 let weightDirty=false,lastWeightUnit='lb',notesDirty=false;
 $('date').value=localDate(new Date());
 let activeJournalDate=$('date').value;
+let customRange=bounds(activeJournalDate,'month');
+$('rangeStart').value=customRange[0];$('rangeEnd').value=customRange[1];
 const id=()=>crypto.randomUUID();
 function journalAccess(){
   $('journal').inert=!cloud?.user||!loaded||busy;
@@ -72,7 +74,7 @@ async function save(next,message){
     return false;
   }finally{if(generation===epoch)setBusy(false);}
 }
-function bounds(date,mode){let start=new Date(date+'T12:00:00'),end=new Date(start);if(mode==='week'){start.setDate(start.getDate()-((start.getDay()+6)%7));end=new Date(start);end.setDate(end.getDate()+6);}if(mode==='month'){start.setDate(1);end=new Date(start.getFullYear(),start.getMonth()+1,0,12);}return [localDate(start),localDate(end)];}
+function bounds(date,mode){if(mode==='custom')return [...customRange];let start=new Date(date+'T12:00:00'),end=new Date(start);if(mode==='week'){start.setDate(start.getDate()-((start.getDay()+6)%7));end=new Date(start);end.setDate(end.getDate()+6);}if(mode==='month'){start.setDate(1);end=new Date(start.getFullYear(),start.getMonth()+1,0,12);}return [localDate(start),localDate(end)];}
 function daysBetween(a,b){const days=[];let d=new Date(a+'T12:00:00');while(localDate(d)<=b){days.push(localDate(d));d.setDate(d.getDate()+1);}return days;}
 function syncNoteForm(){
   const date=$('date').value;
@@ -126,6 +128,8 @@ function renderWeightChart(){
 function render(){const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const changeStart=view==='day'?localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))):start;const changeWeights=state.weights.filter(w=>w.date>=changeStart&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const change=changeWeights.length>1?changeWeights.at(-1).kg-changeWeights[0].kg:null;
 $('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat">${label==='Protein'?`<details class="macroTotals"><summary><span>${label}</span><strong>${value}</strong><small>${note} · expand</small></summary><p>Carbs <b>${fmt(foods.reduce((s,f)=>s+(f.carbs||0),0))} g</b></p><p>Fats <b>${fmt(foods.reduce((s,f)=>s+(f.fats||0),0))} g</b></p></details>`:`<label>${label}</label><strong>${value}</strong><small>${note}</small>`}</div>`).join('');
 $('period').textContent=start===end?start:`${start} – ${end}`;
+$('rangeForm').hidden=view!=='custom';
+$('trendPeriod').textContent=view==='custom'?`${start} – ${end}`:'Daily totals';
 const consumed=state.foods.filter(f=>f.date===date);
 $('consumedDate').textContent=date===localDate(new Date())?'Today':date;
 $('consumedFoods').innerHTML=consumed.length?consumed.map(f=>`<li class="consumedFood"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div></li>`).join(''):'<li class="empty">No foods logged for this day yet.</li>';
@@ -138,7 +142,7 @@ $('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Up
 if(!weightDirty)syncWeightForm();if(!notesDirty)syncNoteForm();renderWeightChart();
 let chartDays=view==='day'?daysBetween(localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-6))),date):daysBetween(start,end);
 const totals=chartDays.map(d=>({date:d,cal:state.foods.filter(f=>f.date===d).reduce((s,f)=>s+f.calories,0)})),max=Math.max(1,...totals.map(t=>t.cal));
-$('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily calorie totals; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${Math.max(1,t.cal/max*100)}%" title="${t.date}: ${fmt(t.cal)} kcal"><span>${chartDays.length<10||i%5===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
+$('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily calorie totals; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${Math.max(1,t.cal/max*100)}%" title="${t.date}: ${fmt(t.cal)} kcal"><span>${chartDays.length<10||i%Math.max(5,Math.ceil(chartDays.length/8))===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
 $('history').innerHTML=chartDays.slice().reverse().map(d=>{const fs=state.foods.filter(f=>f.date===d),w=state.weights.find(w=>w.date===d);return `<tr><td>${d}</td><td>${fs.length?fmt(fs.reduce((s,f)=>s+f.calories,0)):'—'}</td><td>${fs.length?fmt(fs.reduce((s,f)=>s+f.protein,0))+' g':'—'}</td><td>${w?weightText(w.kg):'—'}</td></tr>`;}).join('');}
 $('foodForm').onsubmit=async e=>{
   e.preventDefault();if(busy||!validDate($('date').value))return;
@@ -170,6 +174,12 @@ document.addEventListener('submit',async e=>{
   food.carbs=carbs;food.fats=fats;await save(next,'Carbs and fats updated.');
 });
 $('protein').onclick=()=>{$('foodMacros').open=true;};
+$('rangeForm').onsubmit=e=>{
+  e.preventDefault();const start=$('rangeStart').value,end=$('rangeEnd').value;
+  if(!validDate(start)||!validDate(end)||start>end){$('rangeStatus').textContent='Choose valid dates with From on or before To.';return;}
+  if((Date.parse(end+'T12:00:00Z')-Date.parse(start+'T12:00:00Z'))/86400000>3660){$('rangeStatus').textContent='Choose a range of up to 10 years.';return;}
+  customRange=[start,end];$('rangeStatus').textContent='Showing '+start+' to '+end+' (inclusive).';render();
+};
 $('date').onchange=()=>{
   if(!validDate($('date').value))return;
   if(notesDirty&&!confirm('Discard your unsaved note before switching dates?')){$('date').value=activeJournalDate;return;}

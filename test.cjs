@@ -104,6 +104,10 @@ async function main(){
  el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);
  el('date').value='2026-10-29';run('render()');assert.match(el('consumedFoods').innerHTML,/Other day meal/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Oats/);assert.equal(el('consumedDate').textContent,run("localDate(new Date())==='2026-10-29'?'Today':'2026-10-29'"));
  el('date').value='2026-10-30';run('render()');assert.match(el('consumedFoods').innerHTML,/No foods logged/);assert.equal(el('consumedTotals').innerHTML,'');
+ // Custom ranges include both boundaries and filter totals, food history and weight graphs.
+ el('rangeStart').value='2026-10-28';el('rangeEnd').value='2026-10-29';run("view='custom'");el('rangeForm').onsubmit({preventDefault(){}});assert.equal(run('bounds($("date").value,view).join(",")'),'2026-10-28,2026-10-29');assert.match(el('stats').innerHTML,/1,200/);assert.match(el('foodList').innerHTML,/Oats/);assert.match(el('foodList').innerHTML,/Other day meal/);assert.match(el('history').innerHTML,/2026-10-28/);assert.doesNotMatch(el('history').innerHTML,/2026-10-30/);assert.equal(el('weightChartPeriod').textContent,'2026-10-28 – 2026-10-29');
+ el('rangeStart').value='2026-10-30';el('rangeForm').onsubmit({preventDefault(){}});assert.match(el('rangeStatus').textContent,/on or before/);assert.equal(run('customRange[0]'),'2026-10-28');
+ el('rangeStart').value='2026-10-29';el('rangeForm').onsubmit({preventDefault(){}});assert.match(el('stats').innerHTML,/900/);assert.doesNotMatch(el('foodList').innerHTML,/Oats/);run("view='day';render()");
  console.log('Passed: selected-day consumed-food list, independent of period, with totals, escaping and empty state;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');
