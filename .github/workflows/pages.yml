@@ -26,8 +26,12 @@ jobs:
           node --check app.js
           node --check cloud.js
           node test.cjs
+          node --check offline.js
+          node test-offline.cjs
       - name: Build static files
         run: node scripts/build.cjs
+      - name: Verify offline shell
+        run: node test-shell.cjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

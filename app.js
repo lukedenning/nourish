@@ -11,9 +11,11 @@ let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,u
 let cloudSynced=false;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
 let weightDirty=false,lastWeightUnit='lb',notesDirty=false;
-$('date').value=localDate(new Date());
+function deviceToday(){try{const date=new Date();return Number.isFinite(date.getTime())?localDate(date):null;}catch{return null;}}
+let followsToday=true,lastDeviceDay=deviceToday();
+$('date').value=lastDeviceDay||'';
 let activeJournalDate=$('date').value;
-let customRange=bounds(activeJournalDate,'month');
+let customRange=lastDeviceDay?bounds(activeJournalDate,'month'):['',''];
 $('rangeStart').value=customRange[0];$('rangeEnd').value=customRange[1];
 const id=()=>crypto.randomUUID();
 function journalAccess(){
@@ -43,7 +45,7 @@ function updateSyncButton(){
 function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value||$('carbs').value||$('fats').value||document.querySelectorAll('.itemMacros[open]').length);}
 async function refreshCloud(manual=false){
   if(document.querySelectorAll('.itemMacros[open]').length){if(manual)notify('Save or close the expanded food values before refreshing.');return false;}
-  if(!cloud?.user||busy||(!manual&&dirty()))return false;
+  if(!cloud?.user||busy||(!manual&&dirty()&&!cloud.cache?.pending))return false;
   setBusy(true);const generation=epoch;
   if(manual)setSyncStatus('Syncing saved entries…');
   try{
@@ -53,7 +55,8 @@ async function refreshCloud(manual=false){
     if(!Number.isSafeInteger(row.revision)||row.revision<0)throw Error('Invalid cloud revision');
     const changed=cloud.revision!==row.revision;
     cloud.accept(row);state=row.document;loaded=true;render();
-    setSyncStatus(unsaved?'Not saved':'Saved to cloud');
+    setSyncStatus(row.offlineConflict?'Saved on this device · Sync conflict':row.pending?'Saved on this device · Waiting to sync':row.cacheWarning||'Saved to cloud');
+    $('resolveOffline').hidden=!row.offlineConflict;
     if(manual)notify('Cloud journal refreshed. Your form entries are unchanged.');
     else if(changed)notify('Journal updated from another device.');
     updateMigration();return true;
@@ -66,12 +69,16 @@ async function save(next,message){
   setBusy(true);const generation=epoch;unsaved=null;
   setSyncStatus('Saving…');
   try{
-    validate(next);await cloud.save(next);
+    validate(next);const saved=await cloud.save(next);
     if(generation!==epoch)return false;
-    state=next;render();setSyncStatus('Saved to cloud');notify(message+' Saved to your account.');return true;
+    state=saved?.document||next;render();
+    $('resolveOffline').hidden=!saved?.offlineConflict;
+    setSyncStatus(saved?.offlineConflict?'Saved on this device · Sync conflict':saved?.pending?'Saved on this device · Waiting to sync':saved?.cacheWarning||'Saved to cloud');
+    notify(message+(saved?.pending?' Saved on this device; it will sync when connected.':' Saved to your account.'));return true;
   }catch(error){
     if(generation!==epoch)return false;
     unsaved=next;
+    if(error.localStorage){setSyncStatus('Not saved · Device storage unavailable');notify(error.message);return false;}
     if(error.conflict){
       try{const row=await cloud.load();if(generation!==epoch)return false;validate(row.document);cloud.accept(row);state=row.document;render();setSyncStatus('Latest cloud version loaded');}
       catch{ setSyncStatus('Refresh required'); }
@@ -196,6 +203,7 @@ $('rangeForm').onsubmit=e=>{
 $('date').onchange=()=>{
   if(!validDate($('date').value))return;
   if(notesDirty&&!confirm('Discard your unsaved note before switching dates?')){$('date').value=activeJournalDate;return;}
+  followsToday=$('date').value===deviceToday();$('followToday').hidden=followsToday;
   activeJournalDate=$('date').value;notesDirty=false;resetFood();weightDirty=false;$('weightForm').reset();render();
 };
 function moveJournalDay(offset){
@@ -282,7 +290,7 @@ async function activate(session){
   $('accountEmail').textContent=user?.email||'';
   $('authStatus').textContent='';$('passwordStatus').textContent='';
   for(const key of ['loginPassword','newPassword','confirmPassword'])$(key).value='';
-  $('passwordSetup').open=false;notify('');
+  $('passwordSetup').open=false;$('resolveOffline').hidden=true;notify('');
   if(user){setSyncStatus('Loading your journal…');await refreshCloud(true);}
   else setSyncStatus('Sign in to sync');
 }
@@ -353,6 +361,7 @@ async function syncFromTop(){
   if(!cloud?.user){$('accountPanel').scrollIntoView({behavior:'smooth',block:'center'});$('passwordEmail').focus({preventScroll:true});return;}
   const hasDraft=dirty(),hasUnsaved=Boolean(unsaved);
   if(await refreshCloud(true)){
+    if(cloud.cache?.pending){notify(cloud.cache.conflicts?.length?'Saved locally. Review the sync conflict below before syncing.':'Saved on this device. Sync will retry when connected.');return;}
     if(hasUnsaved)notify('Latest saved entries loaded. Your previous change has not been saved; review it and try saving again.');
     else if(hasDraft)notify('Saved entries are synced. Finish adding your food, saving your weigh-in or saving your notes to sync the form entries too.');
     else notify('All saved entries are synced. Open Nourish with the same account on your other devices.');
@@ -394,13 +403,30 @@ async function initialise(){
   try{
     const config=window.NOURISH_CONFIG;
     if(!window.supabase||!config?.url||!config?.publishableKey)throw Error('The cloud connection could not start. Reload the app to try again.');
-    cloud=new JournalCloud(window.supabase.createClient(config.url,config.publishableKey));
+    cloud=new (globalThis.OfflineJournalCloud||JournalCloud)(window.supabase.createClient(config.url,config.publishableKey),validate);
     cloud.client.auth.onAuthStateChange((event,session)=>{setTimeout(()=>activate(session).catch(()=>notify('Unable to load this account. Please sign in again.')),0);});
     await activate(await cloud.session());
     updateEmailButton();setInterval(updateEmailButton,1000);
     setInterval(()=>{if(document.visibilityState==='visible')refreshCloud();},15000);
-    window.addEventListener('focus',()=>refreshCloud());
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCloud();});
+    window.addEventListener('focus',()=>{checkLocalDate();refreshCloud();});
+    window.addEventListener('online',()=>refreshCloud());
+    setInterval(checkLocalDate,30000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkLocalDate();refreshCloud();}});
   }catch(error){setSyncStatus('Connection unavailable');$('authStatus').textContent=error.message;}
+}
+function checkLocalDate(){
+  const today=deviceToday();if(!today)return;
+  if(followsToday&&today!==lastDeviceDay&&!dirty()&&!busy){
+    $('date').value=today;activeJournalDate=today;notesDirty=false;weightDirty=false;render();lastDeviceDay=today;
+  }else if(!followsToday)lastDeviceDay=today;
+}
+$('followToday').onclick=()=>{const today=deviceToday();if(!today){notify('Device date unavailable. Choose your journal date manually.');return;}$('date').value=today;$('date').onchange();};
+$('resolveOffline').onclick=async()=>{
+  if(!cloud?.resolveOffline||busy)return;
+  if(!confirm('The same entries changed on this device and in the cloud. Keep this device’s versions for conflicting entries? Other cloud changes will be preserved. Choose Cancel to keep both copies unchanged; export a backup before reviewing.'))return;
+  setBusy(true);try{const row=await cloud.resolveOffline();state=validate(row.document);render();$('resolveOffline').hidden=!row.offlineConflict;setSyncStatus(row.pending?'Saved on this device · Waiting to sync':'Saved to cloud');notify(row.pending?'Still saved locally; sync will retry.':'Offline entries synced.');}catch(error){notify(error.message);}finally{setBusy(false);}
+};
+if(typeof navigator!=='undefined'&&navigator.serviceWorker){
+  navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(()=>{$('offlineReady').textContent='Offline access ready on this device. Saved changes sync when you reopen the app online.';}).catch(()=>{$('offlineReady').textContent='Offline page loading unavailable. Keep this page open to use it offline.';});
 }
 initialise();
