@@ -85,6 +85,11 @@ async function main(){
  el('date').value='2026-10-28';el('date').onchange();assert.equal(el('dayNotes').value,firstNote);el('dayNotes').value='';el('dayNotes').oninput();await el('notesForm').onsubmit({preventDefault(){}});assert.equal(db.get('account-a').document.notes['2026-10-28'],undefined);assert.ok(db.get('account-a').document.notes['2026-10-29']);
  assert.throws(()=>run("validate({...emptyJournal(),notes:{'not-a-date':'x'}})"));assert.throws(()=>run("validate({...emptyJournal(),notes:{'2026-10-28':'x'.repeat(5001)}})"));assert.throws(()=>run("validate({...emptyJournal(),notes:[]})"));assert.doesNotThrow(()=>run('validate({version:1,foods:[],weights:[],favourites:[]})'));
  console.log('Passed: cloud daily notes, per-date separation, multiline plain text, failed-save draft retention, date-change guard, clearing and legacy compatibility;');
+ // A blank protein field saves as zero, including when saving a regular food.
+ run('resetFood();notesDirty=false');el('date').value='2026-10-28';el('date').onchange();
+ el('title').value='Zero protein example';el('portion').value='1 portion';el('calories').value='95';el('protein').value='';el('saveFav').checked=true;await el('foodForm').onsubmit({preventDefault(){}});
+ assert.equal(run('state.foods.find(f=>f.title==="Zero protein example").protein'),0);assert.equal(run('state.favourites.find(f=>f.title==="Zero protein example").protein'),0);assert.equal(db.get('account-a').document.foods.find(f=>f.title==='Zero protein example').protein,0);
+ console.log('Passed: blank protein saves and syncs as zero, including regular foods;');
  // The consumed-food sidebar always follows the selected day, even in a month view.
  run("state=emptyJournal();state.foods=[{id:'day-a',date:'2026-10-28',title:'Oats',portion:'1 bowl',calories:100,protein:10},{id:'day-b',date:'2026-10-28',title:'<b>Yoghurt</b>',portion:'200 g',calories:200,protein:20},{id:'other-day',date:'2026-10-29',title:'Other day meal',portion:'1 plate',calories:900,protein:90}];view='month'");
  el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);

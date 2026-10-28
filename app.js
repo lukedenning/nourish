@@ -143,7 +143,7 @@ $('foodForm').onsubmit=async e=>{
   e.preventDefault();if(busy||!validDate($('date').value))return;
   const edit=$('editId').value,old=state.foods.find(f=>f.id===edit);
   if(edit&&!old){notify('This food was removed on another device. Cancel the edit to add it again.');return;}
-  const food={id:edit||id(),date:old?old.date:$('date').value,title:$('title').value.trim(),portion:$('portion').value.trim(),calories:Number($('calories').value),protein:Number($('protein').value)};
+  const food={id:edit||id(),date:old?old.date:$('date').value,title:$('title').value.trim(),portion:$('portion').value.trim(),calories:Number($('calories').value),protein:$('protein').value.trim()===''?0:Number($('protein').value)};
   if(!nutrition(food))return;const next=structuredClone(state);
   if(edit)next.foods=next.foods.map(f=>f.id===edit?food:f);else next.foods.push(food);
   if($('saveFav').checked){const {date,...fav}=food;fav.id=id();next.favourites.push(fav);}

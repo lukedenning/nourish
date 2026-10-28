@@ -13,8 +13,8 @@ Internet access is required to load and save your journal. Authentication tokens
 - **Daily notes** with a 5,000-character text area and Save notes button for each selected date. Notes sync privately with the account, are included in backups, and preserve unsaved drafts during refresh. Switching dates asks before discarding a note draft. Older journals without notes remain compatible.
 - A dark purple night-mode theme with bright orange highlights and unchanged white text throughout the tracker, forms, graphs, and account panel.
 - A **Foods consumed** list directly below **Your regulars**, showing food title, portion, calories, protein, and totals for the selected date—even in weekly or monthly views.
-- Food title, portion, calories and grams of protein; edit and delete entries.
-- Regular foods with one-tap addition of their usual portion. Edit the added entry for different portions and nutrition.
+- Food title, portion, calories and optional grams of protein (blank saves as 0 g); edit and delete entries.
+- Regular foods with one-tap addition of their usual portion. Both sidebar food panels keep a fixed height and scroll internally as their lists grow. Edit the added entry for different portions and nutrition.
 - Daily totals, Monday–Sunday weekly totals, calendar-month totals, and averages over days containing food entries.
 - A daily weigh-in form below the calorie tracker, defaulting to lbs, with live kg conversion and editable weigh-ins for the selected date.
 - A weight line graph with pounds on the left axis and kilograms on the right. Daily view shows the last 30 days; Weekly and Monthly follow the selected week or month. Only recorded weigh-ins are plotted, with a table of exact values and a single-point state until a second weigh-in is recorded. Weight change uses the first and last weigh-ins in the graph period.
