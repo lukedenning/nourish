@@ -347,10 +347,33 @@ async function syncFromTop(){
 }
 $('syncNow').onclick=syncFromTop;
 $('refreshCloud').onclick=syncFromTop;
-$('refreshPage').onclick=()=>{
+function reloadPage(){
+  if(busy){notify('Wait for your current save or sync to finish before refreshing.');return false;}
   if((dirty()||unsaved)&&!confirm('Reload the page and discard unsaved entries?'))return;
-  location.reload();
-};
+  location.reload();return true;
+}
+$('refreshPage').onclick=reloadPage;
+
+let pullStart=null,pullReady=false;
+function clearPull(){pullStart=null;pullReady=false;$('pullRefresh').hidden=true;}
+document.addEventListener('touchstart',e=>{
+  clearPull();
+  if(e.touches.length!==1||window.scrollY>0||busy)return;
+  if(e.target.closest('input,textarea,select,button,a,summary,form,#favourites,.dayFoods,.tableWrap,#chart'))return;
+  pullStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(!pullStart)return;
+  if(e.touches.length!==1||window.scrollY>0){clearPull();return;}
+  const dy=e.touches[0].clientY-pullStart.y,dx=Math.abs(e.touches[0].clientX-pullStart.x);
+  if(dx>Math.max(15,Math.abs(dy))||dy<0){clearPull();return;}
+  if(!e.cancelable){clearPull();return;}
+  e.preventDefault();if(dy<12)return;pullReady=dy>=90;
+  $('pullRefresh').hidden=false;
+  $('pullRefresh').textContent=pullReady?'↓ Release to refresh':'↓ Pull down to refresh';
+},{passive:false});
+document.addEventListener('touchend',()=>{const refresh=pullReady;clearPull();if(refresh)reloadPage();},{passive:true});
+document.addEventListener('touchcancel',clearPull,{passive:true});
 async function initialise(){
   journalAccess();render();
   try{

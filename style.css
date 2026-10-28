@@ -35,3 +35,5 @@ header{display:grid;grid-template-columns:1fr auto;gap:18px;padding-top:0}header
 
 /* Date navigation sits below the header divider, centred above sync. */
 header{display:flex;justify-content:space-between;align-items:center;padding-top:24px}main>.date{width:245px;max-width:100%;margin:0 auto 18px}nav{display:flex;flex-wrap:nowrap;width:fit-content;max-width:100%;overflow-x:auto}nav button{flex:0 0 auto;white-space:nowrap}@media(max-width:600px){nav{width:100%;gap:2px;padding:3px}nav button{flex:1 1 auto;min-width:0;padding:10px 7px;font-size:12px}header{padding-top:18px}}@media(max-width:350px){nav button{font-size:11px;padding-inline:5px}}
+
+.pullRefresh{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:100;background:#3b284a;color:#ffb265;border:1px solid #ff9b3d;border-radius:24px;padding:12px 20px;box-shadow:0 4px 20px #0008;font-size:13px;white-space:nowrap;pointer-events:none}@media(pointer:coarse){html,body{overscroll-behavior-y:none}}

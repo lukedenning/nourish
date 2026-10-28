@@ -104,6 +104,15 @@ async function main(){
  el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);
  el('date').value='2026-10-29';run('render()');assert.match(el('consumedFoods').innerHTML,/Other day meal/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Oats/);assert.equal(el('consumedDate').textContent,run("localDate(new Date())==='2026-10-29'?'Today':'2026-10-29'"));
  el('date').value='2026-10-30';run('render()');assert.match(el('consumedFoods').innerHTML,/No foods logged/);assert.equal(el('consumedTotals').innerHTML,'');
+ // Pull-to-refresh only starts at the page top, ignores controls, and needs a deliberate pull.
+ let reloads=0;context.location.reload=()=>reloads++;context.window.scrollY=0;run('resetFood();notesDirty=false;weightDirty=false;unsaved=null');
+ const touch=(x,y,blocked=false)=>({touches:[{clientX:x,clientY:y}],target:{closest:()=>blocked?{}:null},cancelable:true,preventDefault(){}});
+ handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,70));handlers.touchend[0]();assert.equal(reloads,0);
+ handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,115));assert.match(el('pullRefresh').textContent,/Release/);handlers.touchend[0]();assert.equal(reloads,1);assert.equal(el('pullRefresh').hidden,true);
+ context.window.scrollY=100;handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,115));handlers.touchend[0]();assert.equal(reloads,1);context.window.scrollY=0;
+ handlers.touchstart[0](touch(10,10,true));handlers.touchmove[0](touch(10,115));handlers.touchend[0]();assert.equal(reloads,1);
+ handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(150,30));handlers.touchend[0]();assert.equal(reloads,1);
+ el('title').value='Unsaved draft';context.confirm=()=>false;handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,115));handlers.touchend[0]();assert.equal(reloads,1);context.confirm=()=>true;run('resetFood()');
  // Custom ranges include both boundaries and filter totals, food history and weight graphs.
  el('rangeStart').value='2026-10-28';el('rangeEnd').value='2026-10-29';run("view='custom'");el('rangeForm').onsubmit({preventDefault(){}});assert.equal(run('bounds($("date").value,view).join(",")'),'2026-10-28,2026-10-29');assert.match(el('stats').innerHTML,/1,200/);assert.match(el('foodList').innerHTML,/Oats/);assert.match(el('foodList').innerHTML,/Other day meal/);assert.match(el('history').innerHTML,/2026-10-28/);assert.doesNotMatch(el('history').innerHTML,/2026-10-30/);assert.equal(el('weightChartPeriod').textContent,'2026-10-28 – 2026-10-29');
  el('rangeStart').value='2026-10-30';el('rangeForm').onsubmit({preventDefault(){}});assert.match(el('rangeStatus').textContent,/on or before/);assert.equal(run('customRange[0]'),'2026-10-28');
