@@ -48,4 +48,4 @@ header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>
 
 #foodEntry>summary{cursor:pointer;list-style:none;margin-bottom:0}#foodEntry>summary::-webkit-details-marker{display:none}#foodEntry>summary h2{color:#ff9b3d;display:flex;align-items:center;gap:9px}#foodEntry>summary h2::before{content:"▸";font-size:14px}#foodEntry[open]>summary h2::before{content:"▾"}#foodEntry[open]>summary{margin-bottom:22px}#foodEntry>summary:focus-visible{outline:3px solid #ffb66e;outline-offset:6px;border-radius:4px}#foodList{border-top:1px solid #453351;margin-top:20px}#foodList>.foodRow:first-child{border-top:0}
 
-.regularSearch{flex-shrink:0;margin:0 0 14px;width:100%;font-size:12px}@media(max-width:800px){aside>.green{height:420px}}
+.regularSearch{flex-shrink:0;margin:0 0 14px;width:100%;font-size:16px}@media(max-width:800px){aside>.green{height:420px}}
