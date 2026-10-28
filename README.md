@@ -10,6 +10,7 @@ A responsive calorie, protein and weight journal with private, account-based clo
 Internet access is required to load and save your journal. Authentication tokens are retained by the Supabase SDK to keep you signed in; journal contents are not cached in browser storage. Sign out on shared devices.
 
 ## Features
+- **Daily notes** with a 5,000-character text area and Save notes button for each selected date. Notes sync privately with the account, are included in backups, and preserve unsaved drafts during refresh. Switching dates asks before discarding a note draft. Older journals without notes remain compatible.
 - A dark night-mode theme throughout the tracker, forms, graphs, and account panel.
 - A **Foods consumed** list directly below **Your regulars**, showing food title, portion, calories, protein, and totals for the selected date—even in weekly or monthly views.
 - Food title, portion, calories and grams of protein; edit and delete entries.

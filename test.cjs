@@ -73,6 +73,18 @@ async function main(){
  failSave=true;el('title').value='Draft after failure';el('calories').value='10';el('protein').value='1';await el('foodForm').onsubmit({preventDefault(){}});assert.match(el('syncNotice').textContent,/Not saved/);failSave=false;
  await el('syncNow').onclick();assert.match(el('syncNotice').textContent,/Not saved/);assert.match(el('status').textContent,/has not been saved/);
  assert.equal(el('title').value,'Draft after failure');
+ // Daily notes save to the account, remain separate by date, and preserve drafts on failure.
+ run('resetFood();syncWeightForm();unsaved=null;notesDirty=false');el('date').value='2026-10-28';el('date').onchange();
+ const firstNote='Felt good after lunch.\nKeep <b>this</b> as plain text.';el('dayNotes').value=firstNote;el('dayNotes').oninput();await el('notesForm').onsubmit({preventDefault(){}});
+ assert.equal(db.get('account-a').document.notes['2026-10-28'],firstNote);assert.equal(run('notesDirty'),false);assert.match(el('noteStatus').textContent,/Saved for/);
+ el('date').value='2026-10-29';el('date').onchange();assert.equal(el('dayNotes').value,'');el('dayNotes').value='Second day note';el('dayNotes').oninput();await el('notesForm').onsubmit({preventDefault(){}});assert.equal(db.get('account-a').document.notes['2026-10-28'],firstNote);assert.equal(db.get('account-a').document.notes['2026-10-29'],'Second day note');
+ failSave=true;el('dayNotes').value='Unsaved note draft';el('dayNotes').oninput();await el('notesForm').onsubmit({preventDefault(){}});assert.equal(el('dayNotes').value,'Unsaved note draft');assert.equal(db.get('account-a').document.notes['2026-10-29'],'Second day note');assert.match(el('noteStatus').textContent,/not saved/);failSave=false;
+ await run('refreshCloud(true)');assert.equal(el('dayNotes').value,'Unsaved note draft');
+ context.confirm=()=>false;el('date').value='2026-10-30';el('date').onchange();assert.equal(el('date').value,'2026-10-29');assert.equal(el('dayNotes').value,'Unsaved note draft');context.confirm=()=>true;
+ await el('notesForm').onsubmit({preventDefault(){}});assert.equal(db.get('account-a').document.notes['2026-10-29'],'Unsaved note draft');
+ el('date').value='2026-10-28';el('date').onchange();assert.equal(el('dayNotes').value,firstNote);el('dayNotes').value='';el('dayNotes').oninput();await el('notesForm').onsubmit({preventDefault(){}});assert.equal(db.get('account-a').document.notes['2026-10-28'],undefined);assert.ok(db.get('account-a').document.notes['2026-10-29']);
+ assert.throws(()=>run("validate({...emptyJournal(),notes:{'not-a-date':'x'}})"));assert.throws(()=>run("validate({...emptyJournal(),notes:{'2026-10-28':'x'.repeat(5001)}})"));assert.throws(()=>run("validate({...emptyJournal(),notes:[]})"));assert.doesNotThrow(()=>run('validate({version:1,foods:[],weights:[],favourites:[]})'));
+ console.log('Passed: cloud daily notes, per-date separation, multiline plain text, failed-save draft retention, date-change guard, clearing and legacy compatibility;');
  // The consumed-food sidebar always follows the selected day, even in a month view.
  run("state=emptyJournal();state.foods=[{id:'day-a',date:'2026-10-28',title:'Oats',portion:'1 bowl',calories:100,protein:10},{id:'day-b',date:'2026-10-28',title:'<b>Yoghurt</b>',portion:'200 g',calories:200,protein:20},{id:'other-day',date:'2026-10-29',title:'Other day meal',portion:'1 plate',calories:900,protein:90}];view='month'");
  el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);

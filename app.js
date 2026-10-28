@@ -5,12 +5,13 @@ const fmt=n=>new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(n
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const validDate=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(new Date(s+'T12:00:00'))&&localDate(new Date(s+'T12:00:00'))===s;
 const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title.trim().length>0&&x.title.length<=100&&typeof x.portion==='string'&&x.portion.length<=60&&Number.isFinite(x.calories)&&x.calories>=0&&x.calories<=100000&&Number.isFinite(x.protein)&&x.protein>=0&&x.protein<=10000;
-function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');return s;}
-const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[]});
+function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');if(s.notes!==undefined&&(s.notes===null||typeof s.notes!=='object'||Array.isArray(s.notes)||!Object.entries(s.notes).every(([date,text])=>validDate(date)&&typeof text==='string'&&text.length<=5000)))throw Error('Invalid daily notes');return s;}
+const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
-let weightDirty=false,lastWeightUnit='lb';
+let weightDirty=false,lastWeightUnit='lb',notesDirty=false;
 $('date').value=localDate(new Date());
+let activeJournalDate=$('date').value;
 const id=()=>crypto.randomUUID();
 function journalAccess(){
   $('journal').inert=!cloud?.user||!loaded||busy;
@@ -28,10 +29,10 @@ function setSyncStatus(message){
   const signedIn=Boolean(cloud?.user);
   const problem=/unavailable|Not saved|Refresh required|required|Connection/.test(message);
   $('syncBanner').dataset.state=problem?'error':message.includes('Saving')||message.includes('Syncing')?'working':signedIn?'saved':'signed-out';
-  $('syncNotice').textContent=problem?message+' · Check your connection and try again.':!signedIn?'Sign in to sync your saved food and weight entries across devices.':message==='Saved to cloud'?'Saved to cloud · Available on all your devices.':message;
+  $('syncNotice').textContent=problem?message+' · Check your connection and try again.':!signedIn?'Sign in to sync your saved food, weight entries and notes across devices.':message==='Saved to cloud'?'Saved to cloud · Available on all your devices.':message;
 }
 
-function dirty(){return Boolean($('title').value||weightDirty||$('editId').value);}
+function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value);}
 async function refreshCloud(manual=false){
   if(!cloud?.user||busy||(!manual&&dirty()))return false;
   setBusy(true);const generation=epoch;
@@ -72,6 +73,13 @@ async function save(next,message){
 }
 function bounds(date,mode){let start=new Date(date+'T12:00:00'),end=new Date(start);if(mode==='week'){start.setDate(start.getDate()-((start.getDay()+6)%7));end=new Date(start);end.setDate(end.getDate()+6);}if(mode==='month'){start.setDate(1);end=new Date(start.getFullYear(),start.getMonth()+1,0,12);}return [localDate(start),localDate(end)];}
 function daysBetween(a,b){const days=[];let d=new Date(a+'T12:00:00');while(localDate(d)<=b){days.push(localDate(d));d.setDate(d.getDate()+1);}return days;}
+function syncNoteForm(){
+  const date=$('date').value;
+  $('notesDate').textContent=date;
+  $('dayNotes').value=state.notes?.[date]||'';
+  $('noteCount').textContent=fmt($('dayNotes').value.length)+' / 5,000';
+  $('noteStatus').textContent=state.notes?.[date]?'Saved for '+date+'.':'No note saved for this day.';
+}
 const weightText=kg=>`${fmt(kg*LB)} lbs / ${fmt(kg)} kg`;
 function updateWeightPreview(){
   const value=Number($('weight').value),kg=$('unit').value==='kg'?value:value/LB;
@@ -126,7 +134,7 @@ $('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeComp
 $('favourites').innerHTML=state.favourites.length?state.favourites.map(f=>`<div class="fav"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')} · ${fmt(f.calories)} kcal · ${fmt(f.protein)} g</small></div><button data-quick="${esc(f.id)}" aria-label="Add ${esc(f.title)}">+</button><button class="icon" data-unfav="${esc(f.id)}" aria-label="Remove favourite ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Save a food as a regular to find it here.</p>';
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
 $('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Update weigh-in':'Save weigh-in';
-if(!weightDirty)syncWeightForm();renderWeightChart();
+if(!weightDirty)syncWeightForm();if(!notesDirty)syncNoteForm();renderWeightChart();
 let chartDays=view==='day'?daysBetween(localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-6))),date):daysBetween(start,end);
 const totals=chartDays.map(d=>({date:d,cal:state.foods.filter(f=>f.date===d).reduce((s,f)=>s+f.calories,0)})),max=Math.max(1,...totals.map(t=>t.cal));
 $('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily calorie totals; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${Math.max(1,t.cal/max*100)}%" title="${t.date}: ${fmt(t.cal)} kcal"><span>${chartDays.length<10||i%5===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
@@ -153,7 +161,23 @@ document.addEventListener('click',async e=>{
   if(b.dataset.delete){next.foods=next.foods.filter(f=>f.id!==b.dataset.delete);if(await save(next,'Food removed.')&&$('editId').value===b.dataset.delete)resetFood();}
   if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;$('editId').value=f.id;for(const k of ['title','portion','calories','protein'])$(k).value=f[k];$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('title').focus();}
 });
-$('date').onchange=()=>{if(validDate($('date').value)){resetFood();weightDirty=false;$('weightForm').reset();render();}};
+$('date').onchange=()=>{
+  if(!validDate($('date').value))return;
+  if(notesDirty&&!confirm('Discard your unsaved note before switching dates?')){$('date').value=activeJournalDate;return;}
+  activeJournalDate=$('date').value;notesDirty=false;resetFood();weightDirty=false;$('weightForm').reset();render();
+};
+$('dayNotes').oninput=()=>{
+  notesDirty=true;$('noteCount').textContent=fmt($('dayNotes').value.length)+' / 5,000';$('noteStatus').textContent='Unsaved changes. Select Save notes to sync them.';
+};
+$('notesForm').onsubmit=async e=>{
+  e.preventDefault();if(busy||!validDate($('date').value))return;
+  const date=$('date').value,text=$('dayNotes').value;
+  if(text.length>5000){$('noteStatus').textContent='Keep your note within 5,000 characters.';return;}
+  const next=structuredClone(state);next.notes={...(next.notes||{})};
+  if(text)next.notes[date]=text;else delete next.notes[date];
+  if(await save(next,'Daily notes saved.')){notesDirty=false;syncNoteForm();$('noteStatus').textContent=text?'Saved for '+date+'.':'Note cleared for '+date+'.';}
+  else $('noteStatus').textContent='Your note was not saved. Your draft is still here; check the sync message and try again.';
+};
 $('weight').oninput=()=>{weightDirty=true;updateWeightPreview();};
 $('unit').onchange=()=>{
   const value=Number($('weight').value),unit=$('unit').value;
@@ -198,6 +222,7 @@ function mergeJournals(remote,local){
     else if(JSON.stringify(match)!==JSON.stringify(item))next[key].push({...item,id:id()});
   }
   for(const w of local.weights)if(!next.weights.some(x=>x.date===w.date))next.weights.push(w);
+  next.notes={...(local.notes||{}),...(remote.notes||{})};
   return validate(next);
 }
 $('migrateLocal').onclick=async()=>{
@@ -212,7 +237,7 @@ async function activate(session){
   const user=session?.user||null;
   if(user?.id===cloud.user?.id&&loaded)return;
   epoch++;busy=false;loaded=false;unsaved=null;cloud.setUser(user);
-  state=emptyJournal();resetFood();weightDirty=false;$('weightForm').reset();render();journalAccess();
+  state=emptyJournal();resetFood();notesDirty=false;activeJournalDate=$('date').value;weightDirty=false;$('weightForm').reset();render();journalAccess();
   $('signedOut').hidden=Boolean(user);$('signedIn').hidden=!user;
   $('accountEmail').textContent=user?.email||'';
   $('authStatus').textContent='';$('passwordStatus').textContent='';
@@ -289,7 +314,7 @@ async function syncFromTop(){
   const hasDraft=dirty(),hasUnsaved=Boolean(unsaved);
   if(await refreshCloud(true)){
     if(hasUnsaved)notify('Latest saved entries loaded. Your previous change has not been saved; review it and try saving again.');
-    else if(hasDraft)notify('Saved entries are synced. Finish adding your food or saving your weigh-in to sync the form entries too.');
+    else if(hasDraft)notify('Saved entries are synced. Finish adding your food, saving your weigh-in or saving your notes to sync the form entries too.');
     else notify('All saved entries are synced. Open Nourish with the same account on your other devices.');
   }
 }
