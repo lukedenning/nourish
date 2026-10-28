@@ -1,0 +1,47 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const elements=new Map(),handlers={},storage=new Map(),db=new Map();
+let currentUser={id:'account-a',email:'test@example.invalid'},failSave=false,saveCalls=0,signoutCallback;
+const empty=()=>({version:1,foods:[],favourites:[],weights:[]});
+function el(id){if(!elements.has(id))elements.set(id,{id,value:'',checked:false,hidden:false,disabled:false,inert:false,innerHTML:'',textContent:'',dataset:{},reset(){if(id==='foodForm'){for(const k of ['title','portion','calories','protein'])el(k).value='';el('saveFav').checked=false;}if(id==='weightForm'){el('weight').value='';el('unit').value='kg';}},focus(){},setAttribute(){},click(){}});return elements.get(id);}
+const client={
+ auth:{getSession:async()=>({data:{session:currentUser?{user:currentUser}:null},error:null}),onAuthStateChange:fn=>{signoutCallback=fn;return {};},signOut:async()=>{currentUser=null;return {error:null};},signInWithOtp:async()=>({error:null}),verifyOtp:async()=>({data:{session:{user:currentUser}},error:null})},
+ from:table=>({select:()=>({eq:(key,value)=>({maybeSingle:async()=>{assert.equal(value,currentUser.id);return {data:db.has(value)?structuredClone(db.get(value)):null,error:null};}})})}),
+ rpc:async(name,args)=>{saveCalls++;assert.equal(name,'save_nourish_journal');if(failSave)return {error:{message:'Network unavailable'}};const row=db.get(currentUser.id);if((row?.revision||0)!==args.expected_revision)return {error:{message:'journal_conflict'}};const data={document:structuredClone(args.next_document),revision:args.expected_revision+1};db.set(currentUser.id,data);return {data:structuredClone(data),error:null};}
+};
+const document={getElementById:el,querySelectorAll:()=>[],addEventListener:(event,fn)=>{(handlers[event]??=[]).push(fn);},createElement:()=>el('a'),visibilityState:'visible'};
+const context={document,localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},crypto:require('node:crypto').webcrypto,structuredClone,Intl,Date,Number,Set,JSON,String,Math,console,setTimeout:()=>0,setInterval:()=>0,URL,Blob,confirm:()=>true,location:{origin:'https://example.invalid',pathname:'/nourish/'}};
+context.window={NOURISH_CONFIG:{url:'https://example.supabase.co',publishableKey:'public-test'},supabase:{createClient:()=>client},addEventListener(){}};
+vm.createContext(context);
+for(const file of ['cloud.js','app.js'])vm.runInContext(fs.readFileSync(__dirname+'/'+file,'utf8'),context);
+const run=s=>vm.runInContext(s,context),flush=()=>new Promise(resolve=>setImmediate(resolve));
+async function click(dataset){for(const handler of handlers.click||[])await handler({target:{closest:()=>({dataset})}});}
+async function main(){
+ await flush();assert.equal(run('loaded'),true);assert.equal(el('journal').inert,false);
+ el('date').value='2026-10-28';el('title').value='Yoghurt';el('portion').value='200 g';el('calories').value='160';el('protein').value='20';el('saveFav').checked=true;
+ await el('foodForm').onsubmit({preventDefault(){}});
+ assert.equal(run('state.foods.length'),1);assert.equal(run('state.favourites.length'),1);assert.match(el('stats').innerHTML,/160/);assert.equal(storage.size,0,'Cloud journal must not be written to localStorage');
+ await click({quick:run('state.favourites[0].id')});assert.equal(run('state.foods.length'),2);assert.match(el('stats').innerHTML,/320/);assert.notEqual(run('state.foods[0].id'),run('state.foods[1].id'));
+ await click({edit:run('state.foods[1].id')});el('calories').value='80';el('protein').value='10';await el('foodForm').onsubmit({preventDefault(){}});assert.equal(run('state.foods.reduce((s,f)=>s+f.calories,0)'),240);
+ el('unit').value='lb';el('weight').value='220.46226218';await el('weightForm').onsubmit({preventDefault(){}});assert.ok(Math.abs(run('state.weights[0].kg')-100)<1e-8);assert.match(el('weightInfo').textContent,/100 kg/);
+ assert.equal(run("bounds('2026-11-01','week').join(',')"),'2026-10-26,2026-11-01');assert.equal(run("bounds('2028-02-15','month').join(',')"),'2028-02-01,2028-02-29');assert.equal(run("validDate('2026-02-30')"),false);
+ assert.throws(()=>run('validate({version:1,foods:[{title:"bad"}],favourites:[],weights:[]})'));
+ // Simulate another device advancing the cloud revision.
+ db.get('account-a').revision++;db.get('account-a').document.foods.push({...db.get('account-a').document.foods[0],id:'other-device'});
+ el('title').value='Draft';el('calories').value='50';el('protein').value='2';await el('foodForm').onsubmit({preventDefault(){}});
+ assert.match(el('status').textContent,/not saved/);assert.equal(el('title').value,'Draft');assert.equal(run('state.foods.length'),3);assert.equal(run('unsaved.foods.length'),3);
+ await el('foodForm').onsubmit({preventDefault(){}});assert.equal(run('state.foods.length'),4);assert.equal(el('title').value,'');
+ failSave=true;el('title').value='Offline draft';el('calories').value='5';el('protein').value='1';const before=JSON.stringify(db.get('account-a'));await el('foodForm').onsubmit({preventDefault(){}});assert.equal(JSON.stringify(db.get('account-a')),before);assert.equal(el('title').value,'Offline draft');assert.match(el('syncStatus').textContent,/Not saved/);failSave=false;
+ run('resetFood()');
+ // Account switching must erase the previous journal from memory and UI.
+ currentUser={id:'account-b',email:'other@example.invalid'};await run('activate({user:{id:"account-b",email:"other@example.invalid"}})');assert.equal(run('state.foods.length'),0);assert.equal(run('unsaved'),null);assert.doesNotMatch(el('foodList').innerHTML,/Yoghurt/);
+ await run('activate(null)');const count=saveCalls;assert.equal(await run('save(emptyJournal(),"No")'),false);assert.equal(saveCalls,count);assert.equal(el('journal').inert,true);
+ // Reload the original account: data comes from the remote store.
+ currentUser={id:'account-a',email:'test@example.invalid'};await run('activate({user:{id:"account-a",email:"test@example.invalid"}})');assert.equal(run('state.foods.length'),4);
+ // Local migration never overwrites a cloud weigh-in on the same date.
+ const merged=run('mergeJournals(state,{version:1,foods:[],favourites:[],weights:[{date:"2026-10-28",kg:1},{date:"2026-10-27",kg:99}]})');assert.equal(merged.weights.length,2);assert.ok(merged.weights.find(w=>w.date==='2026-10-28').kg>99);
+ await click({delete:run('state.foods[0].id')});assert.equal(run('state.foods.length'),3);
+ // Sign-in-link fallback rejects arbitrary origins before using any token.
+ el('loginLink').value='https://evil.example/auth/v1/verify?token=x&type=magiclink';await el('verifyForm').onsubmit({preventDefault(){}});assert.match(el('authStatus').textContent,/original sign-in link/);
+ console.log('Passed: nutrition, favourites, edits, weight conversion, date boundaries, cloud reload, concurrent-device conflict, network failure, account isolation, signed-out writes, local migration, link validation.');
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});
