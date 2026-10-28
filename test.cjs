@@ -73,6 +73,12 @@ async function main(){
  failSave=true;el('title').value='Draft after failure';el('calories').value='10';el('protein').value='1';await el('foodForm').onsubmit({preventDefault(){}});assert.match(el('syncNotice').textContent,/Not saved/);failSave=false;
  await el('syncNow').onclick();assert.match(el('syncNotice').textContent,/Not saved/);assert.match(el('status').textContent,/has not been saved/);
  assert.equal(el('title').value,'Draft after failure');
+ // The consumed-food sidebar always follows the selected day, even in a month view.
+ run("state=emptyJournal();state.foods=[{id:'day-a',date:'2026-10-28',title:'Oats',portion:'1 bowl',calories:100,protein:10},{id:'day-b',date:'2026-10-28',title:'<b>Yoghurt</b>',portion:'200 g',calories:200,protein:20},{id:'other-day',date:'2026-10-29',title:'Other day meal',portion:'1 plate',calories:900,protein:90}];view='month'");
+ el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);
+ el('date').value='2026-10-29';run('render()');assert.match(el('consumedFoods').innerHTML,/Other day meal/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Oats/);assert.equal(el('consumedDate').textContent,'2026-10-29');
+ el('date').value='2026-10-30';run('render()');assert.match(el('consumedFoods').innerHTML,/No foods logged/);assert.equal(el('consumedTotals').innerHTML,'');
+ console.log('Passed: selected-day consumed-food list, independent of period, with totals, escaping and empty state;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');
  console.log('Passed: password sign-in without email, password setup validation and clearing, email-quota fallback, resend cooldown;');

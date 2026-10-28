@@ -10,6 +10,8 @@ A responsive calorie, protein and weight journal with private, account-based clo
 Internet access is required to load and save your journal. Authentication tokens are retained by the Supabase SDK to keep you signed in; journal contents are not cached in browser storage. Sign out on shared devices.
 
 ## Features
+- A dark night-mode theme throughout the tracker, forms, graphs, and account panel.
+- A **Foods consumed** list directly below **Your regulars**, showing food title, portion, calories, protein, and totals for the selected date—even in weekly or monthly views.
 - Food title, portion, calories and grams of protein; edit and delete entries.
 - Regular foods with one-tap addition of their usual portion. Edit the added entry for different portions and nutrition.
 - Daily totals, Monday–Sunday weekly totals, calendar-month totals, and averages over days containing food entries.
