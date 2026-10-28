@@ -21,3 +21,5 @@ aside>.green,aside>.consumedCard{height:280px;display:flex;flex-direction:column
 
 /* Keep the daily entry cards together on phones. */
 @media(max-width:800px){.layout>div,.layout>aside{display:contents}.layout>.foodJournalCard{order:0}.layout .foodJournalCard{order:0}.layout .green{order:1}.layout .consumedCard{order:2}.layout .notesCard{order:3}.layout .trend{order:4}.layout .privacy{order:5}.layout .card{margin-bottom:0}.layout .privacy{margin-top:0}}
+
+.dateNavigation{display:flex;align-items:center;gap:6px}.dateNavigation button{flex:0 0 36px;padding:10px 0;font-size:18px;line-height:1.2}.dateNavigation input{flex:1;min-width:0}.date{width:245px;flex-shrink:0}@media(max-width:800px){.intro .date{max-width:none;width:245px}}@media(max-width:600px){.intro{flex-direction:column}.intro .date{width:100%;max-width:300px}}

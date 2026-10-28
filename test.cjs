@@ -42,6 +42,10 @@ async function main(){
  await click({delete:run('state.foods[0].id')});assert.equal(run('state.foods.length'),3);
  // Sign-in-link fallback rejects arbitrary origins before using any token.
  el('loginLink').value='https://evil.example/auth/v1/verify?token=x&type=magiclink';await el('verifyForm').onsubmit({preventDefault(){}});assert.match(el('authStatus').textContent,/original sign-in link/);
+ // Date arrows cross month and year boundaries using the existing date-change handler.
+ el('date').value='2026-12-31';el('date').onchange();el('nextDay').onclick();assert.equal(el('date').value,'2027-01-01');el('previousDay').onclick();assert.equal(el('date').value,'2026-12-31');
+ el('date').value='2028-03-01';el('date').onchange();el('previousDay').onclick();assert.equal(el('date').value,'2028-02-29');
+ el('date').value='2026-10-28';el('date').onchange();
  // Weight entry defaults to pounds, prefills the selected date, and converts both ways.
  run('syncWeightForm()');assert.equal(el('unit').value,'lb');assert.match(el('weightPreview').textContent,/lbs \/ .*kg/);assert.equal(run('weightDirty'),false);
  el('weight').value='220.46226218';el('weight').oninput();assert.match(el('weightPreview').textContent,/100 kg/);assert.equal(run('weightDirty'),true);

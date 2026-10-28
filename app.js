@@ -166,6 +166,14 @@ $('date').onchange=()=>{
   if(notesDirty&&!confirm('Discard your unsaved note before switching dates?')){$('date').value=activeJournalDate;return;}
   activeJournalDate=$('date').value;notesDirty=false;resetFood();weightDirty=false;$('weightForm').reset();render();
 };
+function moveJournalDay(offset){
+  const day=new Date((validDate($('date').value)?$('date').value:activeJournalDate)+'T12:00:00');
+  day.setDate(day.getDate()+offset);
+  const next=localDate(day);if(!validDate(next))return;
+  $('date').value=next;$('date').onchange();
+}
+$('previousDay').onclick=()=>moveJournalDay(-1);
+$('nextDay').onclick=()=>moveJournalDay(1);
 $('dayNotes').oninput=()=>{
   notesDirty=true;$('noteCount').textContent=fmt($('dayNotes').value.length)+' / 5,000';$('noteStatus').textContent='Unsaved changes. Select Save notes to sync them.';
 };
