@@ -26,11 +26,12 @@ Project: `yojgvyecehzsvndvtzvv` (Nourish), region `eu-west-2` (London).
 
 For a different backend, apply the schema to a fresh Supabase project, then replace the public URL and publishable key in `config.js`.
 
-## Finish GitHub Pages hosting
-1. In this repository's **Settings → Pages**, choose **GitHub Actions** as the build source.
-2. Run **Deploy Nourish to GitHub Pages** from **Actions**, or push a commit after enabling Pages.
-3. Open the deployment URL reported by the workflow. With the current repository name, the expected address is `https://lukedenning.github.io/nourish/`, but it is only live after a successful deployment.
-4. In Supabase **Authentication → URL Configuration**, set the Site URL to that exact deployed address and add the same address to Redirect URLs. This makes emailed sign-in links return directly to the app.
+## Hosting and sign-in configuration
+The repository is public and GitHub Pages is enabled with **GitHub Actions** as its build source. The deployment workflow runs on pushes to `main`.
+
+App address: `https://lukedenning.github.io/nourish/` (available after a successful workflow deployment).
+
+In Supabase **Authentication → URL Configuration**, set the Site URL to that exact deployed address and add the same address to Redirect URLs. This makes emailed sign-in links return directly to the app. The copy-and-paste sign-in link fallback is also available.
 
 GitHub Pages on a private repository requires a GitHub plan that supports private-repository Pages. On GitHub Free, Pages requires a public repository. Changing repository visibility is a separate owner choice. Public app hosting does not make your journal public: database access still requires sign-in and ownership checks.
 
