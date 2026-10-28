@@ -337,6 +337,10 @@ async function syncFromTop(){
 }
 $('syncNow').onclick=syncFromTop;
 $('refreshCloud').onclick=syncFromTop;
+$('refreshPage').onclick=()=>{
+  if((dirty()||unsaved)&&!confirm('Reload the page and discard unsaved entries?'))return;
+  location.reload();
+};
 async function initialise(){
   journalAccess();render();
   try{
