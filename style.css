@@ -45,3 +45,5 @@ main>.headerActions{justify-content:flex-start;margin-top:20px;max-width:none}ma
 
 /* Compact sync status beside the wordmark on every screen. */
 header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>#syncNow{flex:0 0 auto;white-space:nowrap;background:#3a2848;border-color:#684b7d;color:#e7eee6;padding:10px 14px;min-width:88px}header>#syncNow[data-synced="true"]{background:#ff9b3d;border-color:#ff9b3d;color:#28112d}header>#syncNow[data-synced="true"]:hover{background:#ffb265}@media(max-width:350px){header{gap:8px}header>#syncNow{padding:9px 10px;min-width:78px}.brand{gap:7px}}
+
+#foodEntry>summary{cursor:pointer;list-style:none;margin-bottom:0}#foodEntry>summary::-webkit-details-marker{display:none}#foodEntry>summary h2{color:#ff9b3d;display:flex;align-items:center;gap:9px}#foodEntry>summary h2::before{content:"▸";font-size:14px}#foodEntry[open]>summary h2::before{content:"▾"}#foodEntry[open]>summary{margin-bottom:22px}#foodEntry>summary:focus-visible{outline:3px solid #ffb66e;outline-offset:6px;border-radius:4px}#foodList{border-top:1px solid #453351;margin-top:20px}#foodList>.foodRow:first-child{border-top:0}

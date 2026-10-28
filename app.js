@@ -170,7 +170,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.quick){const f=state.favourites.find(f=>f.id===b.dataset.quick);if(!f||!validDate($('date').value))return;next.foods.push({...f,id:id(),date:$('date').value});await save(next,'Usual portion added.');}
   if(b.dataset.unfav){next.favourites=next.favourites.filter(f=>f.id!==b.dataset.unfav);await save(next,'Regular food removed.');}
   if(b.dataset.delete){next.foods=next.foods.filter(f=>f.id!==b.dataset.delete);if(await save(next,'Food removed.')&&$('editId').value===b.dataset.delete)resetFood();}
-  if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;$('editId').value=f.id;for(const k of ['title','portion','calories','protein','carbs','fats'])$(k).value=f[k]??'';$('foodMacros').open=false;$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('title').focus();}
+  if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;$('editId').value=f.id;for(const k of ['title','portion','calories','protein','carbs','fats'])$(k).value=f[k]??'';$('foodMacros').open=false;$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('foodEntry').open=true;$('title').focus();}
 });
 document.addEventListener('submit',async e=>{
   const form=e.target;if(!form.dataset?.macros)return;e.preventDefault();if(busy||!loaded)return;
