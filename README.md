@@ -2,9 +2,9 @@
 A responsive calorie, protein and weight journal with private, account-based cloud storage in Supabase. GitHub Pages serves the app; entries are stored in the database, not the repository or browser localStorage.
 
 ## Use the app
-1. Open the hosted app and request a sign-in link with your email.
-2. Open the email link to sign in. Alternatively, copy the original sign-in link from the email into the app's "Already have a sign-in email?" box. This fallback also works when a redirect is not yet configured.
-3. Use the same email on another device to access the same journal.
+1. Open the hosted app and use **Sign in with password** with your email and password. This does not send an email.
+2. If you do not have a password, use a device where you are already signed in, open **Set a password for other devices**, and save a unique password of at least 12 characters. You can also use **Sign in using an email link** for initial access. The earlier copy-and-paste link fallback remains available.
+3. Use the same email and password on your phone and computer. Both devices can stay signed in to the same journal. Signing out uses local scope and affects only that device.
 4. Add foods, save regulars, and check in your weight. Wait for **Saved to cloud** before closing the app.
 
 Internet access is required to load and save your journal. Authentication tokens are retained by the Supabase SDK to keep you signed in; journal contents are not cached in browser storage. Sign out on shared devices.
@@ -50,4 +50,6 @@ python3 -m http.server 8000 --directory dist
 
 Tests simulate multiple devices and accounts, nutrition calculations, favourites, edits, weight conversion, date boundaries, cloud loading, offline save failure, conflict handling, migration, and signed-out writes. `supabase/test-isolation.sql` verifies live database ownership policies and compare-and-swap behavior using temporary fixture accounts in a rolled-back transaction. It does not create persistent test users.
 
-The database security advisor returned no findings after setup. Visual browser QA and a real email sign-in on the deployed app remain to be completed.
+Deployment and the signed-out page have been verified. The October 2026 login update adds password sign-in, signed-in password setup, an email resend cooldown, and a clear email-quota error. Supabase logs confirmed `over_email_send_rate_limit`; no device-session restriction was involved. Account passwords are never stored by the app or sent to GitHub. Live testing with the owner’s password remains for the owner.
+
+The security advisor currently reports that leaked-password protection is disabled; review that Supabase feature in the project’s auth settings. Reference: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection

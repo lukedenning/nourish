@@ -1,10 +1,10 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map(),handlers={},storage=new Map(),db=new Map();
-let currentUser={id:'account-a',email:'test@example.invalid'},failSave=false,saveCalls=0,signoutCallback;
+let currentUser={id:'account-a',email:'test@example.invalid'},failSave=false,saveCalls=0,signoutCallback,emailCalls=0,passwordCalls=0,passwordUpdates=0,signOutCalls=0;
 const empty=()=>({version:1,foods:[],favourites:[],weights:[]});
 function el(id){if(!elements.has(id))elements.set(id,{id,value:'',checked:false,hidden:false,disabled:false,inert:false,innerHTML:'',textContent:'',dataset:{},reset(){if(id==='foodForm'){for(const k of ['title','portion','calories','protein'])el(k).value='';el('saveFav').checked=false;}if(id==='weightForm'){el('weight').value='';el('unit').value='kg';}},focus(){},setAttribute(){},click(){}});return elements.get(id);}
 const client={
- auth:{getSession:async()=>({data:{session:currentUser?{user:currentUser}:null},error:null}),onAuthStateChange:fn=>{signoutCallback=fn;return {};},signOut:async()=>{currentUser=null;return {error:null};},signInWithOtp:async()=>({error:null}),verifyOtp:async()=>({data:{session:{user:currentUser}},error:null})},
+ auth:{getSession:async()=>({data:{session:currentUser?{user:currentUser}:null},error:null}),onAuthStateChange:fn=>{signoutCallback=fn;return {};},signOut:async options=>{assert.equal(options.scope,'local');signOutCalls++;currentUser=null;return {error:null};},signInWithOtp:async()=>{emailCalls++;return {error:{status:429,code:'over_email_send_rate_limit',message:'email rate limit exceeded'}};},signInWithPassword:async ({email,password})=>{passwordCalls++;assert.equal(email,'test@example.invalid');if(password==='wrong')return {error:{status:400}};return {data:{session:{user:currentUser}},error:null};},updateUser:async ({password})=>{passwordUpdates++;assert.ok(password.length>=12);return {data:{user:currentUser},error:null};},verifyOtp:async()=>({data:{session:{user:currentUser}},error:null})},
  from:table=>({select:()=>({eq:(key,value)=>({maybeSingle:async()=>{assert.equal(value,currentUser.id);return {data:db.has(value)?structuredClone(db.get(value)):null,error:null};}})})}),
  rpc:async(name,args)=>{saveCalls++;assert.equal(name,'save_nourish_journal');if(failSave)return {error:{message:'Network unavailable'}};const row=db.get(currentUser.id);if((row?.revision||0)!==args.expected_revision)return {error:{message:'journal_conflict'}};const data={document:structuredClone(args.next_document),revision:args.expected_revision+1};db.set(currentUser.id,data);return {data:structuredClone(data),error:null};}
 };
@@ -42,6 +42,17 @@ async function main(){
  await click({delete:run('state.foods[0].id')});assert.equal(run('state.foods.length'),3);
  // Sign-in-link fallback rejects arbitrary origins before using any token.
  el('loginLink').value='https://evil.example/auth/v1/verify?token=x&type=magiclink';await el('verifyForm').onsubmit({preventDefault(){}});assert.match(el('authStatus').textContent,/original sign-in link/);
+ // Email quota errors produce a useful fallback and suppress repeat requests.
+ await el('loginForm').onsubmit({preventDefault(){}});assert.equal(emailCalls,1);assert.match(el('authStatus').textContent,/quota/);assert.equal(el('loginButton').disabled,true);
+ await el('loginForm').onsubmit({preventDefault(){}});assert.equal(emailCalls,1);
+ // Saving a password requires a signed-in user and matching strong input.
+ el('newPassword').value='synthetic-test-password';el('confirmPassword').value='mismatch';await el('setPasswordForm').onsubmit({preventDefault(){}});assert.equal(passwordUpdates,0);assert.match(el('passwordStatus').textContent,/do not match/);
+ el('confirmPassword').value='synthetic-test-password';await el('setPasswordForm').onsubmit({preventDefault(){}});assert.equal(passwordUpdates,1);assert.equal(el('newPassword').value,'');assert.equal(el('confirmPassword').value,'');assert.match(el('passwordStatus').textContent,/Password saved/);
+ // Password sign-in uses no email or sign-out request, and clears its input.
+ el('passwordEmail').value='test@example.invalid';el('loginPassword').value='synthetic-test-password';await el('passwordLoginForm').onsubmit({preventDefault(){}});assert.equal(passwordCalls,1);assert.equal(emailCalls,1);assert.equal(signOutCalls,0);assert.equal(el('loginPassword').value,'');assert.equal(run('loaded'),true);
+ el('loginPassword').value='wrong';await el('passwordLoginForm').onsubmit({preventDefault(){}});assert.match(el('authStatus').textContent,/Check your email and password/);assert.equal(el('loginPassword').value,'');
+ assert.ok(![...storage.values()].some(value=>String(value).includes('synthetic-test-password')),'Passwords must never be stored by the app');
+ console.log('Passed: password sign-in without email, password setup validation and clearing, email-quota fallback, resend cooldown;');
  console.log('Passed: nutrition, favourites, edits, weight conversion, date boundaries, cloud reload, concurrent-device conflict, network failure, account isolation, signed-out writes, local migration, link validation.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

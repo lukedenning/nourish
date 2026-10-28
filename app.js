@@ -8,6 +8,7 @@ const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title
 function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');return s;}
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[]});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
+let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
 $('date').value=localDate(new Date());
 const id=()=>crypto.randomUUID();
 function journalAccess(){
@@ -146,18 +147,54 @@ async function activate(session){
   state=emptyJournal();resetFood();$('weightForm').reset();render();journalAccess();
   $('signedOut').hidden=Boolean(user);$('signedIn').hidden=!user;
   $('accountEmail').textContent=user?.email||'';
-  $('authStatus').textContent='';notify('');
+  $('authStatus').textContent='';$('passwordStatus').textContent='';
+  for(const key of ['loginPassword','newPassword','confirmPassword'])$(key).value='';
+  $('passwordSetup').open=false;notify('');
   if(user){$('syncStatus').textContent='Loading your journal…';await refreshCloud(true);}
   else $('syncStatus').textContent='Sign in to sync';
 }
+function updateEmailButton(){
+  const remaining=Math.max(0,Math.ceil((emailRetryAt-Date.now())/1000));
+  $('loginButton').disabled=!cloud||emailInFlight||remaining>0;
+  $('loginButton').textContent=remaining?`Email link · wait ${remaining}s`:'Email me a sign-in link';
+}
 $('loginForm').onsubmit=async e=>{
-  e.preventDefault();if(!cloud)return;const button=$('loginButton');button.disabled=true;
+  e.preventDefault();if(!cloud||emailInFlight||Date.now()<emailRetryAt)return;
+  emailInFlight=true;updateEmailButton();
   try{
     const {error}=await cloud.client.auth.signInWithOtp({email:$('email').value.trim(),options:{emailRedirectTo:location.origin+location.pathname}});
     if(error)throw error;
-    $('authStatus').textContent='Check your email for a sign-in link. Open it, or copy it into the link box below. Use the same email on every device.';
-  }catch(error){$('authStatus').textContent='Could not send a sign-in email: '+error.message;}
-  finally{button.disabled=false;}
+    emailRetryAt=Date.now()+60000;
+    $('authStatus').textContent='Check your email for a sign-in link. Once signed in, set a password to use on your other devices without more emails.';
+  }catch(error){
+    if(error.status===429||error.code==='over_email_send_rate_limit'||/rate.*limit|rate.*exceeded/i.test(error.message||'')){
+      emailRetryAt=Date.now()+60000;
+      $('authStatus').textContent='The sign-in email quota has been reached. Use your password above. If you have not set one, set it on a device where you are already signed in; otherwise wait for the email quota to reset. The retry timer does not indicate when the server quota resets.';
+    }else $('authStatus').textContent='Could not send a sign-in email: '+error.message;
+  }finally{emailInFlight=false;updateEmailButton();}
+};
+$('passwordLoginForm').onsubmit=async e=>{
+  e.preventDefault();if(!cloud||passwordInFlight)return;
+  passwordInFlight=true;$('passwordLoginButton').disabled=true;
+  try{
+    const {data,error}=await cloud.client.auth.signInWithPassword({email:$('passwordEmail').value.trim(),password:$('loginPassword').value});
+    if(error)throw error;
+    await activate(data.session);
+  }catch(error){
+    $('authStatus').textContent=error.status===429?'Too many sign-in attempts. Wait a little before trying again.':'Could not sign in. Check your email and password. If you have not set a password, set it from a device where you are already signed in.';
+  }finally{$('loginPassword').value='';passwordInFlight=false;$('passwordLoginButton').disabled=false;}
+};
+$('setPasswordForm').onsubmit=async e=>{
+  e.preventDefault();if(!cloud?.user||passwordInFlight)return;
+  if($('newPassword').value.length<12){$('passwordStatus').textContent='Choose a password of at least 12 characters.';return;}
+  if($('newPassword').value!==$('confirmPassword').value){$('passwordStatus').textContent='The passwords do not match.';return;}
+  const generation=epoch;passwordInFlight=true;$('setPasswordButton').disabled=true;
+  try{
+    const {error}=await cloud.client.auth.updateUser({password:$('newPassword').value});
+    if(error)throw error;
+    if(generation===epoch)$('passwordStatus').textContent='Password saved. Use your email and this password to sign in on your other devices.';
+  }catch(error){if(generation===epoch)$('passwordStatus').textContent='Could not save your password: '+error.message;}
+  finally{for(const key of ['newPassword','confirmPassword'])$(key).value='';passwordInFlight=false;$('setPasswordButton').disabled=false;}
 };
 $('verifyForm').onsubmit=async e=>{
   e.preventDefault();if(!cloud)return;
@@ -188,6 +225,7 @@ async function initialise(){
     cloud=new JournalCloud(window.supabase.createClient(config.url,config.publishableKey));
     cloud.client.auth.onAuthStateChange((event,session)=>{setTimeout(()=>activate(session).catch(()=>notify('Unable to load this account. Please sign in again.')),0);});
     await activate(await cloud.session());
+    updateEmailButton();setInterval(updateEmailButton,1000);
     setInterval(()=>{if(document.visibilityState==='visible')refreshCloud();},15000);
     window.addEventListener('focus',()=>refreshCloud());
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCloud();});
