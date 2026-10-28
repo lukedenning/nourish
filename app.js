@@ -9,6 +9,7 @@ function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArr
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[]});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
+let weightDirty=false,lastWeightUnit='lb';
 $('date').value=localDate(new Date());
 const id=()=>crypto.randomUUID();
 function journalAccess(){
@@ -20,7 +21,7 @@ function journalAccess(){
 }
 function setBusy(value){busy=value;journalAccess();}
 function notify(message){$('status').textContent=message;}
-function dirty(){return Boolean($('title').value||$('weight').value||$('editId').value);}
+function dirty(){return Boolean($('title').value||weightDirty||$('editId').value);}
 async function refreshCloud(manual=false){
   if(!cloud?.user||busy||(!manual&&dirty()))return false;
   setBusy(true);const generation=epoch;
@@ -60,13 +61,56 @@ async function save(next,message){
 }
 function bounds(date,mode){let start=new Date(date+'T12:00:00'),end=new Date(start);if(mode==='week'){start.setDate(start.getDate()-((start.getDay()+6)%7));end=new Date(start);end.setDate(end.getDate()+6);}if(mode==='month'){start.setDate(1);end=new Date(start.getFullYear(),start.getMonth()+1,0,12);}return [localDate(start),localDate(end)];}
 function daysBetween(a,b){const days=[];let d=new Date(a+'T12:00:00');while(localDate(d)<=b){days.push(localDate(d));d.setDate(d.getDate()+1);}return days;}
-const weightText=kg=>`${fmt(kg)} kg / ${fmt(kg*LB)} lbs`;
-function render(){const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const change=weights.length>1?weights.at(-1).kg-weights[0].kg:null;
-$('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg)+' kg':'—',latest?`${fmt(latest.kg*LB)} lbs · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change)+' kg',change===null?'Needs two weigh-ins in this period':`${change>0?'+':''}${fmt(change*LB)} lbs · first to last`]].map(([label,value,note])=>`<div class="stat"><label>${label}</label><strong>${value}</strong><small>${note}</small></div>`).join('');
+const weightText=kg=>`${fmt(kg*LB)} lbs / ${fmt(kg)} kg`;
+function updateWeightPreview(){
+  const value=Number($('weight').value),kg=$('unit').value==='kg'?value:value/LB;
+  $('weight').max=$('unit').value==='kg'?'2000':'4409';
+  $('weightPreview').textContent=$('weight').value&&Number.isFinite(kg)&&kg>0?weightText(kg):'Enter a weight to see both units.';
+}
+function syncWeightForm(){
+  weightDirty=false;lastWeightUnit='lb';$('unit').value='lb';
+  const current=state.weights.find(w=>w.date===$('date').value);
+  $('weight').value=current?String(Math.round(current.kg*LB*100)/100):'';
+  updateWeightPreview();
+}
+function weightChartMarkup(records,start,end){
+  const points=records.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!points.length)return '<p class="empty weightEmpty">Add your first weigh-in to start your weight graph.</p>';
+  const width=700,height=260,left=65,right=65,top=26,bottom=40;
+  const plotW=width-left-right,plotH=height-top-bottom;
+  const values=points.map(w=>w.kg*LB),min=Math.min(...values),max=Math.max(...values),padding=Math.max((max-min)*.2,1);
+  const low=Math.max(0,min-padding),high=max+padding;
+  const dayNumber=d=>Date.parse(d+'T12:00:00Z')/86400000,first=dayNumber(start),last=dayNumber(end);
+  const x=d=>left+(last===first?.5:(dayNumber(d)-first)/(last-first))*plotW;
+  const y=lbs=>top+(high-lbs)/(high-low)*plotH;
+  const ticks=Array.from({length:4},(_,i)=>low+(high-low)*i/3);
+  const dateLabel=d=>new Date(d+'T12:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'});
+  const axes=ticks.map(v=>`<line x1="${left}" x2="${width-right}" y1="${y(v)}" y2="${y(v)}" class="weightGrid"/><text x="${left-10}" y="${y(v)+4}" text-anchor="end">${fmt(v)}</text><text x="${width-right+10}" y="${y(v)+4}">${fmt(v/LB)}</text>`).join('');
+  const labels=[start,...(last-first>3?[new Date((first+Math.floor((last-first)/2))*86400000).toISOString().slice(0,10)]:[]),end].filter((v,i,a)=>a.indexOf(v)===i);
+  const dateTicks=labels.map(d=>`<text x="${x(d)}" y="${height-12}" text-anchor="middle">${esc(dateLabel(d))}</text>`).join('');
+  const path=points.map((w,i)=>`${i?'L':'M'} ${x(w.date)} ${y(w.kg*LB)}`).join(' ');
+  const markers=points.map(w=>`<circle class="weightDot" cx="${x(w.date)}" cy="${y(w.kg*LB)}" r="4.5"><title>${w.date}: ${weightText(w.kg)}</title></circle>`).join('');
+  return `<svg class="weightSvg" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="weightGraphTitle weightGraphDesc"><title id="weightGraphTitle">Recorded weight from ${start} to ${end}</title><desc id="weightGraphDesc">${points.length} recorded weigh-ins. First: ${weightText(points[0].kg)}. Latest: ${weightText(points.at(-1).kg)}. Left axis pounds, right axis kilograms. Exact values are in the recorded weights table.</desc><text x="${left-10}" y="12" text-anchor="end">lbs</text><text x="${width-right+10}" y="12">kg</text>${axes}${dateTicks}<path d="${path}" class="weightLine"/>${markers}</svg>`;
+}
+function renderWeightChart(){
+  const date=$('date').value;
+  // Daily view shows a month of progress; longer views follow the chosen period.
+  const [start,end]=view==='day'?[localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))),date]:bounds(date,view);
+  const points=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
+  $('weightChartPeriod').textContent=view==='day'?'Last 30 days':`${start} – ${end}`;
+  $('weightChart').innerHTML=weightChartMarkup(points,start,end);
+  $('weightChartNote').textContent=points.length===1?'Your first weigh-in is shown. Add another day to see the line.':points.length>1?'Recorded weigh-ins only; the line connects them across days without an entry. Left: lbs · Right: kg.':'Save a weigh-in above. Your progress will appear here.';
+  $('weightHistory').innerHTML=points.length?points.slice().reverse().map(w=>`<tr><td>${w.date}</td><td>${fmt(w.kg*LB)}</td><td>${fmt(w.kg)}</td></tr>`).join(''):'<tr><td colspan="3">No weigh-ins in this period.</td></tr>';
+}
+
+function render(){const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const changeStart=view==='day'?localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))):start;const changeWeights=state.weights.filter(w=>w.date>=changeStart&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const change=changeWeights.length>1?changeWeights.at(-1).kg-changeWeights[0].kg:null;
+$('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat"><label>${label}</label><strong>${value}</strong><small>${note}</small></div>`).join('');
 $('period').textContent=start===end?start:`${start} – ${end}`;
 $('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
 $('favourites').innerHTML=state.favourites.length?state.favourites.map(f=>`<div class="fav"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')} · ${fmt(f.calories)} kcal · ${fmt(f.protein)} g</small></div><button data-quick="${esc(f.id)}" aria-label="Add ${esc(f.title)}">+</button><button class="icon" data-unfav="${esc(f.id)}" aria-label="Remove favourite ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Save a food as a regular to find it here.</p>';
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
+$('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Update weigh-in':'Save weigh-in';
+if(!weightDirty)syncWeightForm();renderWeightChart();
 let chartDays=view==='day'?daysBetween(localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-6))),date):daysBetween(start,end);
 const totals=chartDays.map(d=>({date:d,cal:state.foods.filter(f=>f.date===d).reduce((s,f)=>s+f.calories,0)})),max=Math.max(1,...totals.map(t=>t.cal));
 $('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily calorie totals; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${Math.max(1,t.cal/max*100)}%" title="${t.date}: ${fmt(t.cal)} kcal"><span>${chartDays.length<10||i%5===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
@@ -93,15 +137,23 @@ document.addEventListener('click',async e=>{
   if(b.dataset.delete){next.foods=next.foods.filter(f=>f.id!==b.dataset.delete);if(await save(next,'Food removed.')&&$('editId').value===b.dataset.delete)resetFood();}
   if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;$('editId').value=f.id;for(const k of ['title','portion','calories','protein'])$(k).value=f[k];$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('title').focus();}
 });
-$('date').onchange=()=>{if(validDate($('date').value)){resetFood();$('weightForm').reset();render();}};
+$('date').onchange=()=>{if(validDate($('date').value)){resetFood();weightDirty=false;$('weightForm').reset();render();}};
+$('weight').oninput=()=>{weightDirty=true;updateWeightPreview();};
+$('unit').onchange=()=>{
+  const value=Number($('weight').value),unit=$('unit').value;
+  if($('weight').value&&Number.isFinite(value)&&value>0&&unit!==lastWeightUnit){
+    const converted=unit==='kg'?value/LB:value*LB;$('weight').value=String(Math.round(converted*100)/100);
+  }
+  lastWeightUnit=unit;weightDirty=true;updateWeightPreview();
+};
 $('weightForm').onsubmit=async e=>{
   e.preventDefault();if(busy)return;
   const value=Number($('weight').value),kg=$('unit').value==='lb'?value/LB:value;
   if(!Number.isFinite(kg)||kg<=0||kg>2000||!validDate($('date').value))return;
   const next=structuredClone(state);next.weights=next.weights.filter(w=>w.date!==$('date').value);next.weights.push({date:$('date').value,kg});
-  if(await save(next,'Weight saved.'))$('weight').value='';
+  if(await save(next,'Weigh-in saved.'))syncWeightForm();
 };
-$('deleteWeight').onclick=async()=>{const next=structuredClone(state);next.weights=next.weights.filter(w=>w.date!==$('date').value);await save(next,'Weigh-in removed.');};
+$('deleteWeight').onclick=async()=>{const next=structuredClone(state);next.weights=next.weights.filter(w=>w.date!==$('date').value);if(await save(next,'Weigh-in removed.'))syncWeightForm();};
 function downloadJournal(journal,suffix=''){
   const url=URL.createObjectURL(new Blob([JSON.stringify(journal,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=`nourish-backup-${localDate(new Date())}${suffix}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
@@ -144,7 +196,7 @@ async function activate(session){
   const user=session?.user||null;
   if(user?.id===cloud.user?.id&&loaded)return;
   epoch++;busy=false;loaded=false;unsaved=null;cloud.setUser(user);
-  state=emptyJournal();resetFood();$('weightForm').reset();render();journalAccess();
+  state=emptyJournal();resetFood();weightDirty=false;$('weightForm').reset();render();journalAccess();
   $('signedOut').hidden=Boolean(user);$('signedIn').hidden=!user;
   $('accountEmail').textContent=user?.email||'';
   $('authStatus').textContent='';$('passwordStatus').textContent='';

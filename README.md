@@ -13,7 +13,8 @@ Internet access is required to load and save your journal. Authentication tokens
 - Food title, portion, calories and grams of protein; edit and delete entries.
 - Regular foods with one-tap addition of their usual portion. Edit the added entry for different portions and nutrition.
 - Daily totals, Monday–Sunday weekly totals, calendar-month totals, and averages over days containing food entries.
-- Weight input in kg or lbs and display in both units. Period change uses the first and last recorded weights in the selected period.
+- A prominent daily weigh-in form, defaulting to lbs, with live kg conversion and editable weigh-ins for the selected date.
+- A weight line graph with pounds on the left axis and kilograms on the right. Daily view shows the last 30 days; Weekly and Monthly follow the selected week or month. Only recorded weigh-ins are plotted, with a table of exact values and a single-point state until a second weigh-in is recorded. Weight change uses the first and last weigh-ins in the graph period.
 - Calorie chart and exact daily nutrition/weight table. Daily view includes a trailing seven-day history.
 - Cloud refresh every 15 seconds while visible, and on focus. Automatic refresh pauses when a form contains a draft. Manual refresh preserves form fields.
 - Revision checks prevent a stale device from silently overwriting newer changes. On conflict, reload the latest cloud journal, retain form fields, and ask the user to review and retry. The attempted version can be exported.
