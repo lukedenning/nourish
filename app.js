@@ -77,7 +77,7 @@ async function save(next,message){
     state=saved?.document||next;render();
     $('resolveOffline').hidden=!saved?.offlineConflict;
     setSyncStatus(saved?.offlineConflict?'Saved on this device · Sync conflict':saved?.pending?'Saved on this device · Waiting to sync':saved?.cacheWarning||'Saved to cloud');
-    notify(message+(saved?.pending?' Saved on this device; it will sync when connected.':' Saved to your account.'));return true;
+    notify(message+(saved?.pending?' Saved on this device; tap Sync now when connected.':' Saved to your account.'));return true;
   }catch(error){
     if(generation!==epoch)return false;
     unsaved=next;
@@ -489,7 +489,7 @@ async function syncFromTop(){
   if(!cloud?.user){$('accountPanel').open=true;$('accountPanel').scrollIntoView({behavior:'smooth',block:'center'});$('passwordEmail').focus({preventScroll:true});return;}
   const hasDraft=dirty(),hasUnsaved=Boolean(unsaved);
   if(await refreshCloud(true)){
-    if(cloud.cache?.pending){if(cloud.cache.conflicts?.length)$('accountPanel').open=true;notify(cloud.cache.conflicts?.length?'Saved locally. Review the sync conflict below before syncing.':'Saved on this device. Sync will retry when connected.');return;}
+    if(cloud.cache?.pending){if(cloud.cache.conflicts?.length)$('accountPanel').open=true;notify(cloud.cache.conflicts?.length?'Saved locally. Review the sync conflict below before syncing.':'Saved on this device. Tap Sync now when connected.');return;}
     if(hasUnsaved)notify('Latest saved entries loaded. Your previous change has not been saved; review it and try saving again.');
     else if(hasDraft)notify('Saved entries are synced. Finish adding your food, saving your weigh-in or saving your notes to sync the form entries too.');
     else notify('All saved entries are synced. Open Nourish with the same account on your other devices.');
@@ -535,11 +535,10 @@ async function initialise(){
     cloud.client.auth.onAuthStateChange((event,session)=>{setTimeout(()=>activate(session).catch(()=>notify('Unable to load this account. Please sign in again.')),0);});
     await activate(await cloud.session());
     updateEmailButton();setInterval(updateEmailButton,1000);
-    setInterval(()=>{if(document.visibilityState==='visible')refreshCloud();},15000);
-    window.addEventListener('focus',()=>{checkLocalDate();refreshCloud();});
-    window.addEventListener('online',()=>refreshCloud());
+    // Refresh saved journal data only on account load or an explicit sync.
+    window.addEventListener('focus',checkLocalDate);
     setInterval(checkLocalDate,30000);
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkLocalDate();refreshCloud();}});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkLocalDate();});
   }catch(error){setSyncStatus('Connection unavailable');$('authStatus').textContent=error.message;}
 }
 function checkLocalDate(){
@@ -552,7 +551,7 @@ $('followToday').onclick=()=>{const today=deviceToday();if(!today){notify('Devic
 $('resolveOffline').onclick=async()=>{
   if(!cloud?.resolveOffline||busy)return;
   if(!confirm('The same entries changed on this device and in the cloud. Keep this device’s versions for conflicting entries? Other cloud changes will be preserved. Choose Cancel to keep both copies unchanged; export a backup before reviewing.'))return;
-  setBusy(true);try{const row=await cloud.resolveOffline();state=validate(row.document);render();$('resolveOffline').hidden=!row.offlineConflict;setSyncStatus(row.pending?'Saved on this device · Waiting to sync':'Saved to cloud');notify(row.pending?'Still saved locally; sync will retry.':'Offline entries synced.');}catch(error){notify(error.message);}finally{setBusy(false);}
+  setBusy(true);try{const row=await cloud.resolveOffline();state=validate(row.document);render();$('resolveOffline').hidden=!row.offlineConflict;setSyncStatus(row.pending?'Saved on this device · Waiting to sync':'Saved to cloud');notify(row.pending?'Still saved locally; tap Sync now to retry.':'Offline entries synced.');}catch(error){notify(error.message);}finally{setBusy(false);}
 };
 if(typeof navigator!=='undefined'&&navigator.serviceWorker){
   navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(()=>{$('offlineReady').textContent='Offline access ready on this device. Saved changes sync when you reopen the app online.';}).catch(()=>{$('offlineReady').textContent='Offline page loading unavailable. Keep this page open to use it offline.';});
