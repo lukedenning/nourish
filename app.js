@@ -45,9 +45,8 @@ function updateSyncButton(){
   $('syncNow').title=synced?'Saved to cloud and available on all your devices':'Sync saved entries with your other devices';
   $('syncNow').setAttribute('aria-label',synced?'Synced: saved to cloud and available on all your devices':'Sync now');
 }
-function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value||MACROS.some(([key])=>$(key).value)||document.querySelectorAll('.itemMacros[open]').length);}
+function dirty(){return Boolean($('title').value||weightDirty||notesDirty||$('editId').value||MACROS.some(([key])=>$(key).value));}
 async function refreshCloud(manual=false){
-  if(document.querySelectorAll('.itemMacros[open]').length){if(manual)notify('Save or close the expanded food values before refreshing.');return false;}
   if(!cloud?.user||busy||(!manual&&dirty()&&!cloud.cache?.pending))return false;
   setBusy(true);const generation=epoch;
   if(manual)setSyncStatus('Syncing saved entries…');
@@ -153,7 +152,7 @@ $('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal 
 $('period').textContent=start===end?start:`${start} – ${end}`;
 $('rangeForm').hidden=view!=='custom';
 
-$('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><details class="itemMacros"><summary>More nutrition</summary><form data-macros="${esc(f.id)}">${MACROS.map(([key,label])=>`<label>${label} (g)<input name="${key}" aria-label="${label} for ${esc(f.title)}" type="number" min="0" max="10000" step="any" inputmode="decimal" value="${f[key]??0}"></label>`).join('')}<button class="primary">Save nutrition</button></form></details><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
+$('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
 renderFavourites();
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
 $('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Update weigh-in':'Save weigh-in';
@@ -169,10 +168,9 @@ $('chart').innerHTML=`<div class="chart selectableChart" role="group" aria-label
 $('trendDayStatus').textContent=selectedTrendDay?'Showing '+selectedTrendDay+' in the table.':'Select a day on the graph to see its values below.';
 $('showAllTrendDays').hidden=!selectedTrendDay;
 $('history').innerHTML=(selectedTrendDay?[selectedTrendDay]:chartDays.slice().reverse()).map(day=>{const foods=dayFoods.get(day),weight=state.weights.find(w=>w.date===day);return `<tr><td>${day}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+food.calories,0)):'—'}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+(food[macroKey]||0),0))+' g':'—'}</td><td>${weight?weightText(weight.kg):'—'}</td></tr>`;}).join('');}
-function cycleTrendMacro(){if(document.querySelectorAll('.itemMacros[open]').length){notify('Save or close expanded food nutrition before changing the graph.');return;}trendMacroIndex=(trendMacroIndex+1)%TREND_MACROS.length;render();}
+function cycleTrendMacro(){trendMacroIndex=(trendMacroIndex+1)%TREND_MACROS.length;render();}
 $('cycleTrendMacro').onclick=cycleTrendMacro;$('cycleTableMacro').onclick=cycleTrendMacro;
 function shiftTrendRange(direction){
-  if(document.querySelectorAll('.itemMacros[open]').length){notify('Save or close expanded food nutrition before moving the range.');return;}
   const start=$('trendStart').value,end=$('trendEnd').value;
   if(!validDate(start)||!validDate(end)||start>end){$('trendRangeStatus').textContent='Choose valid dates before moving the range.';return;}
   const day=86400000,first=Date.parse(start+'T12:00:00Z'),last=Date.parse(end+'T12:00:00Z'),count=Math.round((last-first)/day)+1;
@@ -182,7 +180,7 @@ function shiftTrendRange(direction){
   trendRange=[nextStart,nextEnd];trendRangeDraft=false;selectedTrendDay=null;$('trendRangeStatus').textContent='Moved by '+count+' '+(count===1?'day.':'days.');render();
 }
 $('previousTrendRange').onclick=()=>shiftTrendRange(-1);$('nextTrendRange').onclick=()=>shiftTrendRange(1);
-$('showAllTrendDays').onclick=()=>{if(document.querySelectorAll('.itemMacros[open]').length)return;selectedTrendDay=null;render();};
+$('showAllTrendDays').onclick=()=>{selectedTrendDay=null;render();};
 $('trendStart').oninput=$('trendEnd').oninput=()=>{trendRangeDraft=true;};
 $('trendRangeForm').onsubmit=e=>{
   e.preventDefault();const start=$('trendStart').value,end=$('trendEnd').value;
@@ -227,7 +225,7 @@ function resetFood(){$('foodForm').reset();for(const [key] of MACROS)$(key).valu
 $('cancelEdit').onclick=resetFood;
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||busy)return;
-  if(b.dataset.trendDay){if(!validDate(b.dataset.trendDay))return;if(document.querySelectorAll('.itemMacros[open]').length){notify('Save or close expanded food nutrition before selecting a day.');return;}selectedTrendDay=b.dataset.trendDay;render();return;}
+  if(b.dataset.trendDay){if(!validDate(b.dataset.trendDay))return;selectedTrendDay=b.dataset.trendDay;render();return;}
   if(b.dataset.view){selectedTrendDay=null;trendRangeDraft=false;trendRange=null;view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();return;}
   if(!loaded)return;
   const next=structuredClone(state);
@@ -237,13 +235,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.editRegular){const f=state.favourites.find(f=>f.id===b.dataset.editRegular);if(!f)return;resetFood();$('editRegularId').value=f.id;for(const key of ['title','portion','calories','protein',...MACROS.map(([key])=>key)])$(key).value=String(f[key]??'');$('saveFav').checked=false;$('saveFav').disabled=true;$('addFood').textContent='Save regular';$('cancelEdit').hidden=false;$('foodEntry').open=true;$('title').focus();notify('Editing your saved regular. Existing food entries will keep their recorded values.');}
   if(b.dataset.edit){const f=state.foods.find(f=>f.id===b.dataset.edit);if(!f)return;resetFood();$('editId').value=f.id;for(const k of ['title','portion','calories','protein',...MACROS.map(([key])=>key)])$(k).value=String(f[k]??'');$('foodMacros').open=false;$('addFood').textContent='Save changes';$('cancelEdit').hidden=false;$('foodEntry').open=true;$('title').focus();}
 });
-document.addEventListener('submit',async e=>{
-  const form=e.target;if(!form.dataset?.macros)return;e.preventDefault();if(busy||!loaded)return;
-  const next=structuredClone(state),food=next.foods.find(f=>f.id===form.dataset.macros);if(!food)return;
-  const values=Object.fromEntries(MACROS.map(([key])=>[key,Number(form.elements[key]?.value??food[key]??0)]));
-  if(!Object.values(values).every(n=>Number.isFinite(n)&&n>=0&&n<=10000))return;
-  Object.assign(food,values);await save(next,'Nutrition updated.');
-});
+
 $('protein').onclick=()=>{$('foodMacros').open=true;};
 $('rangeForm').onsubmit=e=>{
   e.preventDefault();const start=$('rangeStart').value,end=$('rangeEnd').value;
