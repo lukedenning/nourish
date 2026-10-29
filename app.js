@@ -140,6 +140,33 @@ function renderWeightChart(){
   $('weightHistory').innerHTML=points.length?points.slice().reverse().map(w=>`<tr><td>${w.date}</td><td>${fmt(w.kg*LB)}</td><td>${fmt(w.kg)}</td></tr>`).join(''):'<tr><td colspan="3">No weigh-ins in this period.</td></tr>';
 }
 
+let calendarMonth='';
+function updateDateDisplay(){
+  const date=$('date').value;
+  $('openJournalCalendar').textContent=validDate(date)?new Date(date+'T12:00:00').toLocaleDateString(undefined,{day:'2-digit',month:'2-digit',year:'numeric'}):'Choose date';
+}
+function renderJournalCalendar(){
+  const first=calendarMonth+'-01';
+  if(!validDate(first)){$('calendarTitle').textContent='Choose a month';$('calendarDays').innerHTML='';return;}
+  const month=new Date(first+'T12:00:00'),end=new Date(month);end.setMonth(end.getMonth()+1);end.setDate(0);
+  $('calendarTitle').textContent=month.toLocaleDateString(undefined,{month:'long',year:'numeric'});$('calendarMonth').value=calendarMonth;
+  const offset=(month.getDay()+6)%7,today=deviceToday();
+  $('calendarDays').innerHTML='<span aria-hidden="true"></span>'.repeat(offset)+Array.from({length:end.getDate()},(_,index)=>{
+    const date=calendarMonth+'-'+String(index+1).padStart(2,'0'),hasNote=Boolean(state.notes?.[date]);
+    const label=new Date(date+'T12:00:00').toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});
+    return `<button class="calendarDay" type="button" data-calendar-day="${date}" data-note="${hasNote}" aria-label="${esc(label)}${hasNote?' · Note saved':''}" aria-pressed="${date===$('date').value}"${date===today?' aria-current="date"':''}>${index+1}${hasNote?'<span class="noteDot" aria-hidden="true">●</span>':''}</button>`;
+  }).join('');
+}
+$('openJournalCalendar').onclick=()=>{calendarMonth=(validDate($('date').value)?$('date').value:deviceToday()||'').slice(0,7);renderJournalCalendar();$('journalCalendar').showModal();};
+$('closeJournalCalendar').onclick=()=>$('journalCalendar').close();
+function moveCalendarMonth(offset){
+  if(!validDate(calendarMonth+'-01'))return;
+  const month=new Date(calendarMonth+'-01T12:00:00');month.setMonth(month.getMonth()+offset);
+  const next=localDate(month);if(!validDate(next))return;calendarMonth=next.slice(0,7);renderJournalCalendar();
+}
+$('calendarPrevious').onclick=()=>moveCalendarMonth(-1);$('calendarNext').onclick=()=>moveCalendarMonth(1);
+$('calendarMonth').onchange=()=>{if(validDate($('calendarMonth').value+'-01')){calendarMonth=$('calendarMonth').value;renderJournalCalendar();}};
+
 function renderFavourites(){
   const query=$('regularSearch').value.trim().toLocaleLowerCase();
   const regulars=state.favourites.filter(f=>f.title.toLocaleLowerCase().includes(query));
@@ -147,7 +174,7 @@ function renderFavourites(){
 }
 $('regularSearch').oninput=renderFavourites;
 
-function render(){const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const changeStart=view==='day'?localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))):start;const changeWeights=state.weights.filter(w=>w.date>=changeStart&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const change=changeWeights.length>1?changeWeights.at(-1).kg-changeWeights[0].kg:null;
+function render(){updateDateDisplay();if($('journalCalendar').open)renderJournalCalendar();const date=$('date').value;if(!validDate(date))return;const [start,end]=bounds(date,view),foods=state.foods.filter(f=>f.date>=start&&f.date<=end),weights=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const calories=foods.reduce((s,f)=>s+f.calories,0),protein=foods.reduce((s,f)=>s+f.protein,0),logged=new Set(foods.map(f=>f.date)).size;const latest=state.weights.filter(w=>w.date<=end).sort((a,b)=>b.date.localeCompare(a.date))[0];const changeStart=view==='day'?localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))):start;const changeWeights=state.weights.filter(w=>w.date>=changeStart&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));const change=changeWeights.length>1?changeWeights.at(-1).kg-changeWeights[0].kg:null;
 $('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat">${label==='Protein'?`<details class="macroTotals"><summary><span>${label}</span><strong>${value}</strong><small>${note} · expand</small></summary><div class="macroTotalsGrid">${MACROS.map(([key,label])=>`<p><span>${label}</span><b>${fmt(foods.reduce((sum,food)=>sum+(food[key]||0),0))} g</b></p>`).join('')}</div></details>`:`<label>${label}</label><strong>${value}</strong><small>${note}</small>`}</div>`).join('');
 $('period').textContent=start===end?start:`${start} – ${end}`;
 $('rangeForm').hidden=view!=='custom';
@@ -225,6 +252,7 @@ function resetFood(){$('foodForm').reset();for(const [key] of MACROS)$(key).valu
 $('cancelEdit').onclick=resetFood;
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||busy)return;
+  if(b.dataset.calendarDay){if(!validDate(b.dataset.calendarDay))return;$('date').value=b.dataset.calendarDay;$('date').onchange();if($('date').value===b.dataset.calendarDay)$('journalCalendar').close();else renderJournalCalendar();return;}
   if(b.dataset.trendDay){if(!validDate(b.dataset.trendDay))return;selectedTrendDay=b.dataset.trendDay;render();return;}
   if(b.dataset.view){selectedTrendDay=null;trendRangeDraft=false;trendRange=null;view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();return;}
   if(!loaded)return;
@@ -426,7 +454,7 @@ function clearPull(){pullStart=null;pullReady=false;$('pullRefresh').hidden=true
 document.addEventListener('touchstart',e=>{
   clearPull();
   if(e.touches.length!==1||window.scrollY>0||busy)return;
-  if(e.target.closest('input,textarea,select,button,a,summary,form,#favourites,.dayFoods,.tableWrap,#chart'))return;
+  if(e.target.closest('input,textarea,select,button,a,summary,form,dialog,#favourites,.dayFoods,.tableWrap,#chart'))return;
   pullStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
 },{passive:true});
 document.addEventListener('touchmove',e=>{
