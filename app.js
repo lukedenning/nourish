@@ -486,10 +486,10 @@ $('signOut').onclick=async()=>{
   await activate(null);
 };
 async function syncFromTop(){
-  if(!cloud?.user){$('accountPanel').scrollIntoView({behavior:'smooth',block:'center'});$('passwordEmail').focus({preventScroll:true});return;}
+  if(!cloud?.user){$('accountPanel').open=true;$('accountPanel').scrollIntoView({behavior:'smooth',block:'center'});$('passwordEmail').focus({preventScroll:true});return;}
   const hasDraft=dirty(),hasUnsaved=Boolean(unsaved);
   if(await refreshCloud(true)){
-    if(cloud.cache?.pending){notify(cloud.cache.conflicts?.length?'Saved locally. Review the sync conflict below before syncing.':'Saved on this device. Sync will retry when connected.');return;}
+    if(cloud.cache?.pending){if(cloud.cache.conflicts?.length)$('accountPanel').open=true;notify(cloud.cache.conflicts?.length?'Saved locally. Review the sync conflict below before syncing.':'Saved on this device. Sync will retry when connected.');return;}
     if(hasUnsaved)notify('Latest saved entries loaded. Your previous change has not been saved; review it and try saving again.');
     else if(hasDraft)notify('Saved entries are synced. Finish adding your food, saving your weigh-in or saving your notes to sync the form entries too.');
     else notify('All saved entries are synced. Open Nourish with the same account on your other devices.');
