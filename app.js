@@ -142,12 +142,12 @@ function renderWeightChart(){
 
 let calendarMonth='';
 function updateDateDisplay(){
-  const date=$('date').value,weekly=view==='week';
+  const date=$('date').value,weekly=view==='week',monthly=view==='month';
   const shortDate=value=>value.slice(8,10)+'/'+value.slice(5,7)+'/'+value.slice(2,4);
-  $('openJournalCalendar').textContent=validDate(date)?weekly?bounds(date,'week').map(shortDate).join(' - '):new Date(date+'T12:00:00').toLocaleDateString(undefined,{day:'2-digit',month:'2-digit',year:'numeric'}):'Choose date';
+  $('openJournalCalendar').textContent=validDate(date)?weekly?bounds(date,'week').map(shortDate).join(' - '):new Date(date+'T12:00:00').toLocaleDateString(undefined,monthly?{month:'long',year:'numeric'}:{day:'2-digit',month:'2-digit',year:'numeric'}):'Choose date';
   $('openJournalCalendar').dataset.week=String(weekly);
-  $('openJournalCalendar').setAttribute('aria-label',weekly?'Choose journal week: '+$('openJournalCalendar').textContent:'Choose journal date');
-  for(const [key,label] of [['previousDay','Previous'],['nextDay','Next']]){const text=label+(weekly?' week':' day');$(key).title=text;$(key).setAttribute('aria-label',text);}
+  $('openJournalCalendar').setAttribute('aria-label',weekly?'Choose journal week: '+$('openJournalCalendar').textContent:monthly?'Choose journal month: '+$('openJournalCalendar').textContent:'Choose journal date');
+  for(const [key,label] of [['previousDay','Previous'],['nextDay','Next']]){const text=label+(weekly?' week':monthly?' month':' day');$(key).title=text;$(key).setAttribute('aria-label',text);}
 }
 
 function renderJournalCalendar(){
@@ -289,7 +289,10 @@ $('date').onchange=()=>{
 };
 function moveJournalDay(offset){
   const day=new Date((validDate($('date').value)?$('date').value:activeJournalDate)+'T12:00:00');
-  day.setDate(day.getDate()+offset*(view==='week'?7:1));
+  if(view==='month'){
+    const originalDay=day.getDate();day.setDate(1);day.setMonth(day.getMonth()+offset);
+    const end=new Date(day);end.setMonth(end.getMonth()+1);end.setDate(0);day.setDate(Math.min(originalDay,end.getDate()));
+  }else day.setDate(day.getDate()+offset*(view==='week'?7:1));
   const next=localDate(day);if(!validDate(next))return;
   $('date').value=next;$('date').onchange();
 }
