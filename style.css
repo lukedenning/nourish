@@ -71,3 +71,6 @@ header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>
 
 /* Constrain wide graphs to their card and allow horizontal scrolling. */
 .layout,.layout>div,.layout>aside,.layout .card,.trend{min-width:0}.layout .card{max-width:100%}#chart{width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:3px 3px 7px}#chart:focus-visible{outline:2px solid #ff9b3d;outline-offset:3px}.trend .tableWrap{min-width:0;max-width:100%}
+
+/* Custom date ranges fit in a single row on narrow screens. */
+#rangeForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:100%;min-width:0}#rangeForm>label{min-width:0;max-width:none;width:100%}#rangeForm input{width:100%;min-width:0;max-width:100%;font-size:16px;padding:10px 4px}#rangeForm>button,#rangeForm>p{grid-column:1/-1}#rangeForm input::-webkit-calendar-picker-indicator{margin:0;padding:0}

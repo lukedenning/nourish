@@ -142,6 +142,7 @@ function renderWeightChart(){
 
 let calendarMonth='';
 function updateDateDisplay(){
+  $('journalDateControls').hidden=view==='custom';
   const date=$('date').value,weekly=view==='week',monthly=view==='month';
   const shortDate=value=>value.slice(8,10)+'/'+value.slice(5,7)+'/'+value.slice(2,4);
   $('openJournalCalendar').textContent=validDate(date)?weekly?bounds(date,'week').map(shortDate).join(' - '):new Date(date+'T12:00:00').toLocaleDateString(undefined,monthly?{month:'long',year:'numeric'}:{day:'2-digit',month:'2-digit',year:'numeric'}):'Choose date';

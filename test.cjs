@@ -150,6 +150,8 @@ async function main(){
  // Monthly navigation clamps month ends and moves by calendar months across years.
  run("view='month'");el('date').value='2028-01-31';el('date').onchange();assert.match(el('openJournalCalendar').textContent,/January 2028/);el('nextDay').onclick();assert.equal(el('date').value,'2028-02-29');assert.match(el('openJournalCalendar').textContent,/February 2028/);el('nextDay').onclick();assert.equal(el('date').value,'2028-03-29');el('previousDay').onclick();assert.equal(el('date').value,'2028-02-29');
  el('date').value='2026-12-31';el('date').onchange();el('nextDay').onclick();assert.equal(el('date').value,'2027-01-31');assert.match(el('openJournalCalendar').textContent,/January 2027/);el('nextDay').onclick();assert.equal(el('date').value,'2027-02-28');assert.match(el('chart').innerHTML,/min-width:728px/);
+ // Custom range hides the top single-date controls; other views restore them.
+ run("view='custom';render()");assert.equal(el('journalDateControls').hidden,true);assert.equal(el('rangeForm').hidden,false);run("view='day';render()");assert.equal(el('journalDateControls').hidden,false);assert.equal(el('rangeForm').hidden,true);
  console.log('Passed: food-journal display and escaping, portion calculator and lbs/kg/stone conversion;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');
