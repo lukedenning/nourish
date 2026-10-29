@@ -11,6 +11,7 @@ const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
 const TREND_MACROS=[['protein','Protein'],['carbs','Carbs'],['fats','Fats'],['saturates','Saturates'],['fiber','Fiber'],['salt','Salt'],['calories','Calories']];
 let trendMacroIndex=0,trendRange=null,trendRangeDraft=false,selectedTrendDay=null;
+let weightRange=null,weightRangeDraft=false;
 let cloudSynced=false;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
 let weightDirty=false,lastWeightUnit='lb',notesDirty=false;
@@ -132,25 +133,52 @@ function weightChartMarkup(records,start,end){
 function renderWeightChart(){
   const date=$('date').value;
   // Daily view shows a month of progress; longer views follow the chosen period.
-  const [start,end]=view==='day'?[localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))),date]:bounds(date,view);
+  const [start,end]=weightRange||(view==='day'?[localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))),date]:bounds(date,view));
+  if(!weightRangeDraft){$('weightRangeStart').value=start;$('weightRangeEnd').value=end;}
+  $('downloadWeightGraph').disabled=!state.weights.some(w=>w.date>=start&&w.date<=end)&&!state.foods.some(f=>f.date>=start&&f.date<=end);
   const points=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
-  $('weightChartPeriod').textContent=view==='day'?'Last 30 days':`${start} – ${end}`;
-  const showCalories=$('showWeightCalories').checked,calorieDays=new Map();
-  for(const food of state.foods)if(food.date>=start&&food.date<=end)calorieDays.set(food.date,(calorieDays.get(food.date)||0)+food.calories);
-  const calories=[...calorieDays].map(([date,calories])=>({date,calories}));
-  $('weightHistorySummary').textContent=showCalories?'View weights and calories':'View recorded weights';
-  $('weightComparisonLegend').hidden=!showCalories;$('weightCaloriesHeading').hidden=!showCalories;
-  $('weightChart').innerHTML=showCalories?weightCalorieChartMarkup(points,calories,start,end):weightChartMarkup(points,start,end);
-  $('weightChartNote').textContent=points.length===1?'Your first weigh-in is shown. Add another day to see the line.':points.length>1?'Recorded weigh-ins only; the line connects them across days without an entry. Left: lbs · Right: kg.':'Save a weigh-in above. Your progress will appear here.';
-  if(showCalories){
-    $('weightChartNote').textContent=(calories.length?'Dates align and empty range edges are trimmed. Weight and calories use independent scales. Lines connect logged days; missing days are not zero.':'No food logged in this period. Log calories to see the green line.')+(points.length?'':' No weigh-ins logged in this period.');
-    const dates=[...new Set([...points.map(w=>w.date),...calorieDays.keys()])].sort().reverse();
-    $('weightHistory').innerHTML=dates.length?dates.map(date=>{const weight=points.find(w=>w.date===date);return `<tr><td>${date}</td><td>${weight?fmt(weight.kg*LB):'—'}</td><td>${weight?fmt(weight.kg):'—'}</td><td>${calorieDays.has(date)?fmt(calorieDays.get(date))+' kcal':'—'}</td></tr>`;}).join(''):'<tr><td colspan="4">No records in this period.</td></tr>';
-  }else $('weightHistory').innerHTML=points.length?points.slice().reverse().map(w=>`<tr><td>${w.date}</td><td>${fmt(w.kg*LB)}</td><td>${fmt(w.kg)}</td></tr>`).join(''):'<tr><td colspan="3">No weigh-ins in this period.</td></tr>';
-
+  $('weightChartPeriod').textContent=!weightRange&&view==='day'?'Last 30 days':`${start} – ${end}`;
+  const selected=WEIGHT_METRICS.filter(metric=>$(metric.id).checked),daily=new Map();
+  for(const food of state.foods)if(food.date>=start&&food.date<=end){
+    if(!daily.has(food.date))daily.set(food.date,Object.fromEntries(WEIGHT_METRICS.map(metric=>[metric.key,0])));
+    for(const metric of WEIGHT_METRICS)daily.get(food.date)[metric.key]+=food[metric.key]||0;
+  }
+  const series=selected.map(metric=>({...metric,points:[...daily].map(([date,values])=>({date,value:values[metric.key]}))}));
+  $('weightHistorySummary').textContent=selected.length?'View weights and nutrition':'View recorded weights';
+  $('weightComparisonLegend').hidden=!selected.length;
+  $('weightComparisonLegend').innerHTML='<span class="weightLegend">● Weight · lbs</span>'+series.map(s=>{
+    const values=s.points.map(p=>p.value),range=values.length?`${fmt(Math.min(...values))}–${fmt(Math.max(...values))} ${s.unit}`:'no logged food';
+    return `<span style="color:${s.color}">● ${s.label} · ${range}</span>`;
+  }).join('');
+  $('weightChart').innerHTML=selected.length?weightNutritionChartMarkup(points,series,start,end):weightChartMarkup(points,start,end);
+  $('weightChart').dataset.start=start;$('weightChart').dataset.end=end;
+  $('downloadWeightGraph').disabled=!$('weightChart').innerHTML.includes('<svg');
+  $('weightHistoryHeader').innerHTML='<th>Date</th><th>lbs</th><th>kg</th>'+selected.map(metric=>`<th>${metric.label} (${metric.unit})</th>`).join('');
+  $('weightChartNote').textContent=selected.length?(daily.size?(selected.length>1?'Nutrition lines each use their own 0–100% range so small and large amounts stay visible; constant lines sit at 50%. Compare trends, not matching amounts. ':'Weight and nutrition use independent scales. ')+ 'Dates align and empty edges are trimmed. Lines connect logged days; missing records are not zero.':'No food logged in this period. Log food to see the selected nutrition lines.'):(points.length===1?'Your first weigh-in is shown. Add another day to see the line.':points.length>1?'Recorded weigh-ins only; the line connects them across days without an entry. Left: lbs · Right: kg.':'Save a weigh-in above. Your progress will appear here.');
+  const dates=selected.length?[...new Set([...points.map(w=>w.date),...daily.keys()])].sort().reverse():points.map(w=>w.date).reverse();
+  $('weightHistory').innerHTML=dates.length?dates.map(date=>{const weight=points.find(w=>w.date===date);return `<tr><td>${date}</td><td>${weight?fmt(weight.kg*LB):'—'}</td><td>${weight?fmt(weight.kg):'—'}</td>${selected.map(metric=>`<td>${daily.has(date)?fmt(daily.get(date)[metric.key])+' '+metric.unit:'—'}</td>`).join('')}</tr>`;}).join(''):`<tr><td colspan="${3+selected.length}">No records in this period.</td></tr>`;
 }
+for(const metric of WEIGHT_METRICS)$(metric.id).onchange=renderWeightChart;
+$('weightRangeStart').oninput=$('weightRangeEnd').oninput=()=>{weightRangeDraft=true;};
+$('weightRangeForm').onsubmit=e=>{
+  e.preventDefault();const start=$('weightRangeStart').value,end=$('weightRangeEnd').value;
+  if(!validDate(start)||!validDate(end)||start>end){$('weightRangeStatus').textContent='Choose valid dates with From on or before To.';return;}
+  if((Date.parse(end+'T12:00:00Z')-Date.parse(start+'T12:00:00Z'))/86400000>3660){$('weightRangeStatus').textContent='Choose a range of up to 10 years.';return;}
+  weightRange=[start,end];weightRangeDraft=false;$('weightRangeStatus').textContent='Showing selected dates, inclusive.';renderWeightChart();
+};
+$('resetWeightRange').onclick=()=>{weightRange=null;weightRangeDraft=false;$('weightRangeStatus').textContent='Following the selected view.';renderWeightChart();};
+$('downloadWeightGraph').onclick=async()=>{
+  const start=$('weightChart').dataset.start,end=$('weightChart').dataset.end,selected=WEIGHT_METRICS.filter(metric=>$(metric.id).checked);
+  $('downloadWeightGraph').disabled=true;$('weightDownloadStatus').textContent='Preparing PNG…';
+  try{
+    const days=new Map();for(const food of state.foods)if(food.date>=start&&food.date<=end){if(!days.has(food.date))days.set(food.date,{});for(const metric of selected)days.get(food.date)[metric.key]=(days.get(food.date)[metric.key]||0)+(food[metric.key]||0);}
+    const legend=selected.map(metric=>{const values=[...days.values()].map(day=>day[metric.key]);return {color:metric.color,label:metric.label+(values.length?' · '+fmt(Math.min(...values))+'–'+fmt(Math.max(...values))+' '+metric.unit:' · no records')};});
+    await downloadWeightGraphImage({start,end,legend,normalized:selected.length>1});$('weightDownloadStatus').textContent='PNG downloaded. Open your browser downloads to save or share the image.';
+  }catch(error){$('weightDownloadStatus').textContent=error.message;}
+  finally{$('downloadWeightGraph').disabled=!$('weightChart').innerHTML.includes('<svg');}
+};
 
-$('showWeightCalories').onchange=renderWeightChart;
+
 
 let calendarMonth='';
 function updateDateDisplay(){
