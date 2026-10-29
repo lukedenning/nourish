@@ -12,7 +12,7 @@ const document={getElementById:el,querySelectorAll:()=>[],addEventListener:(even
 const context={document,localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},crypto:require('node:crypto').webcrypto,structuredClone,Intl,Date,Number,Set,JSON,String,Math,console,setTimeout:()=>0,setInterval:()=>0,URL,Blob,confirm:()=>true,location:{origin:'https://example.invalid',pathname:'/nourish/'}};
 context.window={NOURISH_CONFIG:{url:'https://example.supabase.co',publishableKey:'public-test'},supabase:{createClient:()=>client},addEventListener(){}};
 vm.createContext(context);
-for(const file of ['cloud.js','app.js'])vm.runInContext(fs.readFileSync(__dirname+'/'+file,'utf8'),context);
+for(const file of ['cloud.js','weight-comparison.js','app.js'])vm.runInContext(fs.readFileSync(__dirname+'/'+file,'utf8'),context);
 const run=s=>vm.runInContext(s,context),flush=()=>new Promise(resolve=>setImmediate(resolve));
 async function click(dataset){for(const handler of handlers.click||[])await handler({target:{closest:()=>({dataset})}});}
 async function main(){
@@ -154,6 +154,10 @@ async function main(){
  run("view='custom';render()");assert.equal(el('journalDateControls').hidden,true);assert.equal(el('rangeForm').hidden,false);run("view='day';render()");assert.equal(el('journalDateControls').hidden,false);assert.equal(el('rangeForm').hidden,true);
  // Daily labels use weekday / two-digit day / month, preserving other views.
  run("view='day'");el('date').value='2026-10-29';el('date').onchange();assert.equal(el('openJournalCalendar').textContent,'Thurs 29 Oct');el('date').value='2026-11-01';el('date').onchange();assert.equal(el('openJournalCalendar').textContent,'Sun 1 Nov');
+ // Calorie overlay aligns dates, trims empty edges, and never invents zeroes for missing records.
+ const compared=run("weightCalorieChartMarkup([{date:'2026-10-27',kg:100},{date:'2026-10-29',kg:99}],[{date:'2026-10-27',calories:2000},{date:'2026-10-28',calories:1800},{date:'2026-10-29',calories:1900}],'2026-10-01','2026-10-31')");assert.match(compared,/Weight and calories from 2026-10-27 to 2026-10-29/);assert.equal((compared.match(/class="calorieDot"/g)||[]).length,3);assert.equal((compared.match(/class="weightDot"/g)||[]).length,2);assert.doesNotMatch(compared,/NaN|Infinity/);assert.equal(compared.match(/class="calorieDot" cx="([^"]+)/)[1],compared.match(/class="weightDot" cx="([^"]+)/)[1]);
+ assert.doesNotMatch(run("weightCalorieChartMarkup([],[{date:'2026-10-28',calories:0}],'2026-10-01','2026-10-31')"),/NaN|Infinity/);assert.match(run("weightCalorieChartMarkup([],[],'2026-10-01','2026-10-31')"),/first weigh-in/);
+ run("view='day';state=emptyJournal();state.weights=[{date:'2026-10-27',kg:100},{date:'2026-10-29',kg:99}];state.foods=[{id:'c1',date:'2026-10-28',title:'One',portion:'1',calories:200,protein:0},{id:'c2',date:'2026-10-28',title:'Two',portion:'1',calories:300,protein:0}]");el('date').value='2026-10-29';el('showWeightCalories').checked=true;el('showWeightCalories').onchange();assert.match(el('weightChart').innerHTML,/500 kcal/);assert.match(el('weightHistory').innerHTML,/2026-10-28<\/td><td>—<\/td><td>—<\/td><td>500 kcal/);assert.equal(el('weightCaloriesHeading').hidden,false);el('showWeightCalories').checked=false;el('showWeightCalories').onchange();assert.doesNotMatch(el('weightChart').innerHTML,/calorieLine/);assert.equal(el('weightCaloriesHeading').hidden,true);
  console.log('Passed: food-journal display and escaping, portion calculator and lbs/kg/stone conversion;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');

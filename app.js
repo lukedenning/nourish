@@ -135,10 +135,22 @@ function renderWeightChart(){
   const [start,end]=view==='day'?[localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-29))),date]:bounds(date,view);
   const points=state.weights.filter(w=>w.date>=start&&w.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
   $('weightChartPeriod').textContent=view==='day'?'Last 30 days':`${start} – ${end}`;
-  $('weightChart').innerHTML=weightChartMarkup(points,start,end);
+  const showCalories=$('showWeightCalories').checked,calorieDays=new Map();
+  for(const food of state.foods)if(food.date>=start&&food.date<=end)calorieDays.set(food.date,(calorieDays.get(food.date)||0)+food.calories);
+  const calories=[...calorieDays].map(([date,calories])=>({date,calories}));
+  $('weightHistorySummary').textContent=showCalories?'View weights and calories':'View recorded weights';
+  $('weightComparisonLegend').hidden=!showCalories;$('weightCaloriesHeading').hidden=!showCalories;
+  $('weightChart').innerHTML=showCalories?weightCalorieChartMarkup(points,calories,start,end):weightChartMarkup(points,start,end);
   $('weightChartNote').textContent=points.length===1?'Your first weigh-in is shown. Add another day to see the line.':points.length>1?'Recorded weigh-ins only; the line connects them across days without an entry. Left: lbs · Right: kg.':'Save a weigh-in above. Your progress will appear here.';
-  $('weightHistory').innerHTML=points.length?points.slice().reverse().map(w=>`<tr><td>${w.date}</td><td>${fmt(w.kg*LB)}</td><td>${fmt(w.kg)}</td></tr>`).join(''):'<tr><td colspan="3">No weigh-ins in this period.</td></tr>';
+  if(showCalories){
+    $('weightChartNote').textContent=(calories.length?'Dates align and empty range edges are trimmed. Weight and calories use independent scales. Lines connect logged days; missing days are not zero.':'No food logged in this period. Log calories to see the green line.')+(points.length?'':' No weigh-ins logged in this period.');
+    const dates=[...new Set([...points.map(w=>w.date),...calorieDays.keys()])].sort().reverse();
+    $('weightHistory').innerHTML=dates.length?dates.map(date=>{const weight=points.find(w=>w.date===date);return `<tr><td>${date}</td><td>${weight?fmt(weight.kg*LB):'—'}</td><td>${weight?fmt(weight.kg):'—'}</td><td>${calorieDays.has(date)?fmt(calorieDays.get(date))+' kcal':'—'}</td></tr>`;}).join(''):'<tr><td colspan="4">No records in this period.</td></tr>';
+  }else $('weightHistory').innerHTML=points.length?points.slice().reverse().map(w=>`<tr><td>${w.date}</td><td>${fmt(w.kg*LB)}</td><td>${fmt(w.kg)}</td></tr>`).join(''):'<tr><td colspan="3">No weigh-ins in this period.</td></tr>';
+
 }
+
+$('showWeightCalories').onchange=renderWeightChart;
 
 let calendarMonth='';
 function updateDateDisplay(){

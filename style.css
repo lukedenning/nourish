@@ -97,3 +97,5 @@ main>.date{width:340px;max-width:100%}.date[data-view="day"] #openJournalCalenda
 #calendarMonth::-webkit-datetime-edit{min-width:0;padding:0}
 #calendarMonth::-webkit-calendar-picker-indicator{flex-shrink:0;margin:0;padding:0}
 @media(max-width:420px){.trendDateRow{grid-template-columns:22px minmax(0,1fr) minmax(0,1fr) 22px;gap:4px}.trendDateRow>button{padding-inline:0}#journalCalendar{padding:14px}.calendarHeader h2{font-size:16px}.calendarHeader button{padding:8px}.calendarDays{gap:3px}}
+
+.weightCalorieToggle{margin:0 0 12px;font-size:12px}.weightCalorieToggle input{accent-color:#60d394}.weightComparisonLegend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;margin:0 0 8px}.weightLegend{color:#ff9b3d}.calorieLegend{color:#60d394}.calorieLine{fill:none;stroke:#60d394;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.calorieDot{fill:#60d394;stroke:#251a30;stroke-width:1}.weightSvg .weightAxisLabel{fill:#ff9b3d}.weightSvg .calorieAxisLabel{fill:#60d394}.comparisonSvg .weightLine{stroke:#ff9b3d}.comparisonSvg .weightDot{fill:#ff9b3d;stroke:#ff9b3d}
