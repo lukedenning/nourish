@@ -164,6 +164,11 @@ function renderJournalCalendar(){
 }
 $('openJournalCalendar').onclick=()=>{calendarMonth=(validDate($('date').value)?$('date').value:deviceToday()||'').slice(0,7);renderJournalCalendar();$('journalCalendar').showModal();};
 $('closeJournalCalendar').onclick=()=>$('journalCalendar').close();
+$('journalCalendar').addEventListener('click',event=>{
+  if(event.target!==$('journalCalendar'))return;
+  const bounds=$('journalCalendar').getBoundingClientRect();
+  if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)$('journalCalendar').close();
+});
 function moveCalendarMonth(offset){
   if(!validDate(calendarMonth+'-01'))return;
   const month=new Date(calendarMonth+'-01T12:00:00');month.setMonth(month.getMonth()+offset);
