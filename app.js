@@ -172,6 +172,17 @@ function calculatePortion(){
 }
 $('per100').oninput=calculatePortion;
 $('calcPortion').oninput=calculatePortion;
+function convertCalculatorWeight(source){
+  const fields={convertLbs:1,convertKg:LB,convertStone:14};
+  const input=$(source).value;
+  const pounds=Number(input)*fields[source];
+  for(const [key,factor] of Object.entries(fields)){
+    if(key===source)continue;
+    $(key).value=input.trim()!==''&&Number(input)>=0&&Number.isFinite(pounds)?String(Number((pounds/factor).toFixed(6))):'';
+  }
+}
+for(const key of ['convertLbs','convertKg','convertStone'])$(key).oninput=()=>convertCalculatorWeight(key);
+
 $('foodForm').onsubmit=async e=>{
   e.preventDefault();if(busy||!validDate($('date').value))return;
   const edit=$('editId').value,old=state.foods.find(f=>f.id===edit);
