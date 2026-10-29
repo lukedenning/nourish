@@ -145,8 +145,9 @@ function updateDateDisplay(){
   $('journalDateControls').hidden=view==='custom';
   const date=$('date').value,weekly=view==='week',monthly=view==='month';
   const shortDate=value=>value.slice(8,10)+'/'+value.slice(5,7)+'/'+value.slice(2,4);
-  $('openJournalCalendar').textContent=validDate(date)?weekly?bounds(date,'week').map(shortDate).join(' - '):new Date(date+'T12:00:00').toLocaleDateString(undefined,monthly?{month:'long',year:'numeric'}:{day:'2-digit',month:'2-digit',year:'numeric'}):'Choose date';
+  $('openJournalCalendar').textContent=validDate(date)?weekly?bounds(date,'week').map(shortDate).join(' - '):monthly?new Date(date+'T12:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'}):new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})+' / '+date.slice(8,10)+' / '+new Date(date+'T12:00:00').toLocaleDateString('en-GB',{month:'long'}):'Choose date';
   $('openJournalCalendar').dataset.week=String(weekly);
+  $('journalDateControls').dataset.view=view;
   $('openJournalCalendar').setAttribute('aria-label',weekly?'Choose journal week: '+$('openJournalCalendar').textContent:monthly?'Choose journal month: '+$('openJournalCalendar').textContent:'Choose journal date');
   for(const [key,label] of [['previousDay','Previous'],['nextDay','Next']]){const text=label+(weekly?' week':monthly?' month':' day');$(key).title=text;$(key).setAttribute('aria-label',text);}
 }
