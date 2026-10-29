@@ -153,7 +153,7 @@ async function main(){
  // Custom range hides the top single-date controls; other views restore them.
  run("view='custom';render()");assert.equal(el('journalDateControls').hidden,true);assert.equal(el('rangeForm').hidden,false);run("view='day';render()");assert.equal(el('journalDateControls').hidden,false);assert.equal(el('rangeForm').hidden,true);
  // Daily labels use weekday / two-digit day / month, preserving other views.
- run("view='day'");el('date').value='2026-10-29';el('date').onchange();assert.equal(el('openJournalCalendar').textContent,'Thursday / 29 / October');el('date').value='2026-11-01';el('date').onchange();assert.equal(el('openJournalCalendar').textContent,'Sunday / 01 / November');
+ run("view='day'");el('date').value='2026-10-29';el('date').onchange();assert.equal(el('openJournalCalendar').textContent,'Thurs 29 Oct');el('date').value='2026-11-01';el('date').onchange();assert.equal(el('openJournalCalendar').textContent,'Sun 1 Nov');
  console.log('Passed: food-journal display and escaping, portion calculator and lbs/kg/stone conversion;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');
