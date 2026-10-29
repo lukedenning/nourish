@@ -4,12 +4,12 @@ const localDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}
 const fmt=n=>new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(n);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const validDate=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(new Date(s+'T12:00:00'))&&localDate(new Date(s+'T12:00:00'))===s;
-const MACROS=[['carbs','Carbs'],['sugars','Sugars'],['fats','Fats'],['saturates','Saturates'],['fiber','Fiber'],['salt','Salt']];
+const MACROS=[['carbs','Carbs'],['sugars','Sugars'],['fats','Fats'],['saturates','Saturates'],['fiber','Fibre'],['salt','Salt']];
 const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title.trim().length>0&&x.title.length<=100&&typeof x.portion==='string'&&x.portion.length<=60&&Number.isFinite(x.calories)&&x.calories>=0&&x.calories<=100000&&Number.isFinite(x.protein)&&x.protein>=0&&x.protein<=10000&&MACROS.every(([k])=>x[k]===undefined||(Number.isFinite(x[k])&&x[k]>=0&&x[k]<=10000));
 function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');if(s.notes!==undefined&&(s.notes===null||typeof s.notes!=='object'||Array.isArray(s.notes)||!Object.entries(s.notes).every(([date,text])=>validDate(date)&&typeof text==='string'&&text.length<=5000)))throw Error('Invalid daily notes');return s;}
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
-const TREND_MACROS=[['protein','Protein'],['carbs','Carbs'],['fats','Fats'],['saturates','Saturates'],['fiber','Fiber'],['salt','Salt'],['calories','Calories']];
+const TREND_MACROS=[['protein','Protein'],['carbs','Carbs'],['fats','Fats'],['saturates','Saturates'],['fiber','Fibre'],['salt','Salt'],['calories','Calories']];
 let trendMacroIndex=0,trendRange=null,trendRangeDraft=false,selectedTrendDay=null;
 let weightRange=null,weightRangeDraft=false;
 let cloudSynced=false;

@@ -31,7 +31,7 @@ const WEIGHT_METRICS=[
   {key:'sugars',label:'Sugars',unit:'g',color:'#f0d77b',id:'showWeightSugars'},
   {key:'fats',label:'Fats',unit:'g',color:'#f18ac3',id:'showWeightFats'},
   {key:'saturates',label:'Saturates',unit:'g',color:'#ff7777',id:'showWeightSaturates'},
-  {key:'fiber',label:'Fiber',unit:'g',color:'#65ddd8',id:'showWeightFiber'},
+  {key:'fiber',label:'Fibre',unit:'g',color:'#65ddd8',id:'showWeightFiber'},
   {key:'salt',label:'Salt',unit:'g',color:'#d0daa1',id:'showWeightSalt'}
 ];
 function weightNutritionChartMarkup(weights,series,start,end){
