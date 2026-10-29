@@ -9,6 +9,8 @@ const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title
 function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');if(s.notes!==undefined&&(s.notes===null||typeof s.notes!=='object'||Array.isArray(s.notes)||!Object.entries(s.notes).every(([date,text])=>validDate(date)&&typeof text==='string'&&text.length<=5000)))throw Error('Invalid daily notes');return s;}
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
+const TREND_MACROS=[['protein','Protein'],['carbs','Carbs'],['fats','Fats'],['saturates','Saturates'],['fiber','Fiber'],['salt','Salt']];
+let trendMacroIndex=0,trendRange=null,trendRangeDraft=false;
 let cloudSynced=false;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
 let weightDirty=false,lastWeightUnit='lb',notesDirty=false;
@@ -150,16 +152,31 @@ function render(){const date=$('date').value;if(!validDate(date))return;const [s
 $('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal total · ${fmt(logged?calories/logged:0)} / logged day`],['Protein',fmt(protein)+' g',view==='day'?'protein today':`${fmt(logged?protein/logged:0)} g / logged day`],['Latest weight',latest?fmt(latest.kg*LB)+' lbs':'—',latest?`${fmt(latest.kg)} kg · ${latest.date}`:'Add your first weigh-in'],['Weight change',change===null?'—':(change>0?'+':'')+fmt(change*LB)+' lbs',change===null?'Needs two weigh-ins in the graph period':`${change>0?'+':''}${fmt(change)} kg · ${view==='day'?'last 30 days':'first to last'}`]].map(([label,value,note])=>`<div class="stat">${label==='Protein'?`<details class="macroTotals"><summary><span>${label}</span><strong>${value}</strong><small>${note} · expand</small></summary><div class="macroTotalsGrid">${MACROS.map(([key,label])=>`<p><span>${label}</span><b>${fmt(foods.reduce((sum,food)=>sum+(food[key]||0),0))} g</b></p>`).join('')}</div></details>`:`<label>${label}</label><strong>${value}</strong><small>${note}</small>`}</div>`).join('');
 $('period').textContent=start===end?start:`${start} – ${end}`;
 $('rangeForm').hidden=view!=='custom';
-$('trendPeriod').textContent=view==='custom'?`${start} – ${end}`:'Daily totals';
+
 $('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><details class="itemMacros"><summary>More nutrition</summary><form data-macros="${esc(f.id)}">${MACROS.map(([key,label])=>`<label>${label} (g)<input name="${key}" aria-label="${label} for ${esc(f.title)}" type="number" min="0" max="10000" step="any" inputmode="decimal" value="${f[key]??0}"></label>`).join('')}<button class="primary">Save nutrition</button></form></details><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
 renderFavourites();
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
 $('weighDate').textContent='For '+date;$('weightSubmit').textContent=current?'Update weigh-in':'Save weigh-in';
 if(!weightDirty)syncWeightForm();if(!notesDirty)syncNoteForm();renderWeightChart();
-let chartDays=view==='day'?daysBetween(localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-6))),date):daysBetween(start,end);
-const totals=chartDays.map(d=>({date:d,cal:state.foods.filter(f=>f.date===d).reduce((s,f)=>s+f.calories,0)})),max=Math.max(1,...totals.map(t=>t.cal));
-$('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily calorie totals; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${Math.max(1,t.cal/max*100)}%" title="${t.date}: ${fmt(t.cal)} kcal"><span>${chartDays.length<10||i%Math.max(5,Math.ceil(chartDays.length/8))===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
-$('history').innerHTML=chartDays.slice().reverse().map(d=>{const fs=state.foods.filter(f=>f.date===d),w=state.weights.find(w=>w.date===d);return `<tr><td>${d}</td><td>${fs.length?fmt(fs.reduce((s,f)=>s+f.calories,0)):'—'}</td><td>${fs.length?fmt(fs.reduce((s,f)=>s+f.protein,0))+' g':'—'}</td><td>${w?weightText(w.kg):'—'}</td></tr>`;}).join('');}
+const [trendStart,trendEnd]=trendRange||(view==='day'?[localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-6))),date]:[start,end]);
+const chartDays=daysBetween(trendStart,trendEnd),[macroKey,macroLabel]=TREND_MACROS[trendMacroIndex];
+if(!trendRangeDraft){$('trendStart').value=trendStart;$('trendEnd').value=trendEnd;}$('trendPeriod').textContent=`${trendStart} – ${trendEnd}`;
+for(const key of ['cycleTrendMacro','cycleTableMacro']){$(key).textContent=macroLabel;$(key).setAttribute('aria-label',macroLabel+'. Show next nutrient');}
+const dayFoods=new Map(chartDays.map(day=>[day,[]]));for(const food of state.foods)dayFoods.get(food.date)?.push(food);
+const totals=chartDays.map(day=>({date:day,value:dayFoods.get(day).reduce((sum,food)=>sum+(food[macroKey]||0),0)})),max=Math.max(1,...totals.map(t=>t.value));
+$('chart').innerHTML=`<div class="chart" role="img" aria-label="Daily ${macroLabel.toLowerCase()} totals in grams; exact values in the table below">${totals.map((t,i)=>`<div class="bar" style="height:${t.value/max*100}%" title="${t.date}: ${fmt(t.value)} g ${macroLabel.toLowerCase()}"><span>${chartDays.length<10||i%Math.max(5,Math.ceil(chartDays.length/8))===0?Number(t.date.slice(-2)):''}</span></div>`).join('')}</div>`;
+$('history').innerHTML=chartDays.slice().reverse().map(day=>{const foods=dayFoods.get(day),weight=state.weights.find(w=>w.date===day);return `<tr><td>${day}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+food.calories,0)):'—'}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+(food[macroKey]||0),0))+' g':'—'}</td><td>${weight?weightText(weight.kg):'—'}</td></tr>`;}).join('');}
+function cycleTrendMacro(){if(document.querySelectorAll('.itemMacros[open]').length){notify('Save or close expanded food nutrition before changing the graph.');return;}trendMacroIndex=(trendMacroIndex+1)%TREND_MACROS.length;render();}
+$('cycleTrendMacro').onclick=cycleTrendMacro;$('cycleTableMacro').onclick=cycleTrendMacro;
+$('trendStart').oninput=$('trendEnd').oninput=()=>{trendRangeDraft=true;};
+$('trendRangeForm').onsubmit=e=>{
+  e.preventDefault();const start=$('trendStart').value,end=$('trendEnd').value;
+  if(!validDate(start)||!validDate(end)||start>end){$('trendRangeStatus').textContent='Choose valid dates with From on or before To.';return;}
+  if((Date.parse(end+'T12:00:00Z')-Date.parse(start+'T12:00:00Z'))/86400000>3660){$('trendRangeStatus').textContent='Choose a range of up to 10 years.';return;}
+  trendRangeDraft=false;trendRange=[start,end];$('trendRangeStatus').textContent='Showing the selected dates, inclusive.';render();
+};
+$('resetTrendRange').onclick=()=>{trendRangeDraft=false;trendRange=null;$('trendRangeStatus').textContent='Following the selected view.';render();};
+
 function calculatePortion(){
   const per100=$('per100').value,portion=$('calcPortion').value;
   const value=Number(per100)/100*Number(portion);
@@ -192,7 +209,7 @@ function resetFood(){$('foodForm').reset();for(const [key] of MACROS)$(key).valu
 $('cancelEdit').onclick=resetFood;
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||busy)return;
-  if(b.dataset.view){view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();return;}
+  if(b.dataset.view){trendRangeDraft=false;trendRange=null;view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();return;}
   if(!loaded)return;
   const next=structuredClone(state);
   if(b.dataset.quick){const f=state.favourites.find(f=>f.id===b.dataset.quick);if(!f||!validDate($('date').value))return;next.foods.push({...f,id:id(),date:$('date').value});await save(next,'Usual portion added.');}
@@ -218,7 +235,7 @@ $('date').onchange=()=>{
   if(!validDate($('date').value))return;
   if(notesDirty&&!confirm('Discard your unsaved note before switching dates?')){$('date').value=activeJournalDate;return;}
   followsToday=$('date').value===deviceToday();$('followToday').hidden=followsToday;
-  activeJournalDate=$('date').value;notesDirty=false;resetFood();weightDirty=false;$('weightForm').reset();render();
+  trendRangeDraft=false;trendRange=null;activeJournalDate=$('date').value;notesDirty=false;resetFood();weightDirty=false;$('weightForm').reset();render();
 };
 function moveJournalDay(offset){
   const day=new Date((validDate($('date').value)?$('date').value:activeJournalDate)+'T12:00:00');
