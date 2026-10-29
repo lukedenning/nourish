@@ -82,3 +82,18 @@ main>.date{width:340px;max-width:100%}.date[data-view="day"] #openJournalCalenda
 .dateNavigation #openJournalCalendar{font-size:28px}.dateNavigation #openJournalCalendar[data-week="true"],.date[data-view="day"] #openJournalCalendar{font-size:22.75px}
 
 .dateNavigation #openJournalCalendar{padding-block:4px}@media(max-width:420px){.dateNavigation>button:not(#openJournalCalendar){flex-basis:28px}.dateNavigation #openJournalCalendar{padding-inline:2px;letter-spacing:-.4px}}
+
+/* Keep native date controls inside narrow mobile grid cells. */
+.trendDateRow{grid-template-columns:26px minmax(0,1fr) minmax(0,1fr) 26px;gap:6px;width:100%;min-width:0;max-width:100%}
+.trendDateRow>label{display:block;min-width:0;width:100%;max-width:100%;overflow:hidden}
+.trendDateRow input{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:9px 2px;overflow:hidden}
+.trendDateRow input::-webkit-datetime-edit{min-width:0;padding:0}
+.trendDateRow input::-webkit-calendar-picker-indicator{flex-shrink:0;width:12px;margin:0;padding:0}
+#journalCalendar{box-sizing:border-box;width:min(360px,calc(100vw - 24px));max-width:calc(100vw - 24px);min-width:0;margin:auto}
+.calendarHeader,.calendarMonthLabel{min-width:0;max-width:100%}
+.calendarHeader h2{min-width:0;text-align:center;overflow-wrap:anywhere}
+.calendarMonthLabel{display:block;overflow:hidden}
+#calendarMonth{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:10px 4px;font-size:16px;overflow:hidden}
+#calendarMonth::-webkit-datetime-edit{min-width:0;padding:0}
+#calendarMonth::-webkit-calendar-picker-indicator{flex-shrink:0;margin:0;padding:0}
+@media(max-width:420px){.trendDateRow{grid-template-columns:22px minmax(0,1fr) minmax(0,1fr) 22px;gap:4px}.trendDateRow>button{padding-inline:0}#journalCalendar{padding:14px}.calendarHeader h2{font-size:16px}.calendarHeader button{padding:8px}.calendarDays{gap:3px}}
