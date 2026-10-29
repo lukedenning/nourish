@@ -76,3 +76,5 @@ header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>
 #rangeForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:100%;min-width:0}#rangeForm>label{min-width:0;max-width:none;width:100%}#rangeForm input{width:100%;min-width:0;max-width:100%;font-size:16px;padding:10px 4px}#rangeForm>button,#rangeForm>p{grid-column:1/-1}#rangeForm input::-webkit-calendar-picker-indicator{margin:0;padding:0}
 
 main>.date{width:340px;max-width:100%}.date[data-view="day"] #openJournalCalendar{font-size:13px;padding-inline:4px}
+
+.dateNavigation #openJournalCalendar{height:44px}
