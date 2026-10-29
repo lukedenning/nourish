@@ -151,11 +151,6 @@ $('stats').innerHTML=[['Calories',fmt(calories),view==='day'?'kcal today':`kcal 
 $('period').textContent=start===end?start:`${start} – ${end}`;
 $('rangeForm').hidden=view!=='custom';
 $('trendPeriod').textContent=view==='custom'?`${start} – ${end}`:'Daily totals';
-const consumed=state.foods.filter(f=>f.date===date);
-$('consumedDate').textContent=date===localDate(new Date())?'Today':date;
-$('consumedFoods').innerHTML=consumed.length?consumed.map(f=>`<li class="consumedFood"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div></li>`).join(''):'<li class="empty">No foods logged for this day yet.</li>';
-$('consumedTotals').innerHTML=consumed.length?`<span>${consumed.length} ${consumed.length===1?'entry':'entries'}</span><strong>${fmt(consumed.reduce((sum,f)=>sum+f.calories,0))} kcal · ${fmt(consumed.reduce((sum,f)=>sum+f.protein,0))} g protein</strong>`:'';
-
 $('foodList').innerHTML=foods.length?foods.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(f=>`<div class="foodRow"><div class="details"><b>${esc(f.title)}</b><small>${esc(f.portion||'1 portion')}${view!=='day'?' · '+f.date:''}</small></div><div class="nutrients">${fmt(f.calories)} kcal<small>${fmt(f.protein)} g protein</small></div><details class="itemMacros"><summary>More nutrition</summary><form data-macros="${esc(f.id)}">${MACROS.map(([key,label])=>`<label>${label} (g)<input name="${key}" aria-label="${label} for ${esc(f.title)}" type="number" min="0" max="10000" step="any" inputmode="decimal" value="${f[key]??0}"></label>`).join('')}<button class="primary">Save nutrition</button></form></details><button class="icon" data-edit="${esc(f.id)}" aria-label="Edit ${esc(f.title)}">Edit</button><button class="icon" data-delete="${esc(f.id)}" aria-label="Delete ${esc(f.title)}">×</button></div>`).join(''):'<p class="empty">Your journal is ready. Add your first food above.</p>';
 renderFavourites();
 const current=state.weights.find(w=>w.date===date);$('weightInfo').textContent=current?weightText(current.kg):'No weigh-in for this date.';$('deleteWeight').hidden=!current;
@@ -172,6 +167,16 @@ function calculatePortion(){
 }
 $('per100').oninput=calculatePortion;
 $('calcPortion').oninput=calculatePortion;
+function convertCalculatorWeight(source){
+  const fields={convertLbs:1,convertKg:LB,convertStone:14};
+  const input=$(source).value,pounds=Number(input)*fields[source];
+  for(const [key,factor] of Object.entries(fields)){
+    if(key===source)continue;
+    $(key).value=input.trim()!==''&&Number(input)>=0&&Number.isFinite(pounds)?String(Number((pounds/factor).toFixed(6))):'';
+  }
+}
+for(const key of ['convertLbs','convertKg','convertStone'])$(key).oninput=()=>convertCalculatorWeight(key);
+
 
 $('foodForm').onsubmit=async e=>{
   e.preventDefault();if(busy||!validDate($('date').value))return;

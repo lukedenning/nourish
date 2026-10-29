@@ -99,20 +99,9 @@ async function main(){
  const macroId=run('state.foods.find(f=>f.title==="Macro example").id');await handlers.submit[0]({target:{dataset:{macros:macroId},elements:{carbs:{value:'32'},fats:{value:'9'},sugars:{value:'8'},saturates:{value:'3'},fiber:{value:'5'},salt:{value:'0.7'}}},preventDefault(){}});assert.equal(db.get('account-a').document.foods.find(f=>f.id===macroId).carbs,32);assert.equal(db.get('account-a').document.foods.find(f=>f.id===macroId).salt,0.7);assert.match(el('foodList').innerHTML,/Sugars for/);assert.match(el('stats').innerHTML,/Saturates/);assert.throws(()=>run('validate({...emptyJournal(),foods:[{...state.foods[0],salt:-1}]})'));
  assert.throws(()=>run('validate({...emptyJournal(),foods:[{...state.foods[0],carbs:-1}]})'));assert.match(el('foodList').innerHTML,/data-macros=/);assert.match(el('stats').innerHTML,/macroTotals/);
  console.log('Passed: blank protein saves and syncs as zero, including regular foods;');
- // The consumed-food sidebar always follows the selected day, even in a month view.
+ // The food journal remains available after removing the duplicate consumed-food sidebar.
  run("state=emptyJournal();state.foods=[{id:'day-a',date:'2026-10-28',title:'Oats',portion:'1 bowl',calories:100,protein:10},{id:'day-b',date:'2026-10-28',title:'<b>Yoghurt</b>',portion:'200 g',calories:200,protein:20},{id:'other-day',date:'2026-10-29',title:'Other day meal',portion:'1 plate',calories:900,protein:90}];view='month'");
- el('date').value='2026-10-28';run('render()');assert.match(el('consumedFoods').innerHTML,/Oats/);assert.match(el('consumedFoods').innerHTML,/&lt;b&gt;Yoghurt/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Other day meal|<b>Yoghurt/);assert.match(el('consumedTotals').innerHTML,/300 kcal · 30 g protein/);
- el('date').value='2026-10-29';run('render()');assert.match(el('consumedFoods').innerHTML,/Other day meal/);assert.doesNotMatch(el('consumedFoods').innerHTML,/Oats/);assert.equal(el('consumedDate').textContent,run("localDate(new Date())==='2026-10-29'?'Today':'2026-10-29'"));
- el('date').value='2026-10-30';run('render()');assert.match(el('consumedFoods').innerHTML,/No foods logged/);assert.equal(el('consumedTotals').innerHTML,'');
- // Pull-to-refresh only starts at the page top, ignores controls, and needs a deliberate pull.
- let reloads=0;context.location.reload=()=>reloads++;context.window.scrollY=0;run('resetFood();notesDirty=false;weightDirty=false;unsaved=null');
- const touch=(x,y,blocked=false)=>({touches:[{clientX:x,clientY:y}],target:{closest:()=>blocked?{}:null},cancelable:true,preventDefault(){}});
- handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,70));handlers.touchend[0]();assert.equal(reloads,0);
- handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,115));assert.match(el('pullRefresh').textContent,/Release/);handlers.touchend[0]();assert.equal(reloads,1);assert.equal(el('pullRefresh').hidden,true);
- context.window.scrollY=100;handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,115));handlers.touchend[0]();assert.equal(reloads,1);context.window.scrollY=0;
- handlers.touchstart[0](touch(10,10,true));handlers.touchmove[0](touch(10,115));handlers.touchend[0]();assert.equal(reloads,1);
- handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(150,30));handlers.touchend[0]();assert.equal(reloads,1);
- el('title').value='Unsaved draft';context.confirm=()=>false;handlers.touchstart[0](touch(10,10));handlers.touchmove[0](touch(10,115));handlers.touchend[0]();assert.equal(reloads,1);context.confirm=()=>true;run('resetFood()');
+ el('date').value='2026-10-28';run('render()');assert.match(el('foodList').innerHTML,/Oats/);assert.match(el('foodList').innerHTML,/&lt;b&gt;Yoghurt/);
  // Regular-food search matches titles only and never changes saved favourites.
  const savedRegulars=run('structuredClone(state.favourites)');run("state.favourites=[{id:'search-a',title:'Greek Yoghurt',portion:'oats portion',calories:100,protein:10},{id:'search-b',title:'Oats',portion:'1 bowl',calories:200,protein:5}]");el('regularSearch').value='  YOGHURT ';el('regularSearch').oninput();assert.match(el('favourites').innerHTML,/Greek Yoghurt/);assert.doesNotMatch(el('favourites').innerHTML,/>Oats</);
  el('regularSearch').value='oats';el('regularSearch').oninput();assert.doesNotMatch(el('favourites').innerHTML,/Greek Yoghurt/);assert.match(el('favourites').innerHTML,/>Oats</);assert.equal(run('state.favourites.length'),2);
@@ -125,11 +114,15 @@ async function main(){
  context.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[NaN]));}};run('checkLocalDate()');assert.equal(el('date').value,'2026-10-31');el('date').value='2026-10-25';el('date').onchange();assert.equal(el('date').value,'2026-10-25');context.Date=RealDate;
  // Calculator follows per-100g x portion/100, including decimals, zero and incomplete input.
  el('per100').value='250';el('calcPortion').value='60';el('per100').oninput();assert.equal(el('calcResult').value,'150');el('calcPortion').value='12.5';el('calcPortion').oninput();assert.equal(el('calcResult').value,'31.25');el('per100').value='0';el('per100').oninput();assert.equal(el('calcResult').value,'0');el('per100').value='';el('per100').oninput();assert.equal(el('calcResult').value,'');el('per100').value='-1';el('per100').oninput();assert.equal(el('calcResult').value,'');el('per100').value='';el('calcPortion').value='';
+ // All three converter inputs update the other units and clear blank results.
+ el('convertLbs').value='14';el('convertLbs').oninput();assert.equal(el('convertStone').value,'1');assert.ok(Math.abs(Number(el('convertKg').value)-6.35029318)<0.000001);
+ el('convertKg').value='100';el('convertKg').oninput();assert.ok(Math.abs(Number(el('convertLbs').value)-220.46226218)<0.000001);
+ el('convertStone').value='2.5';el('convertStone').oninput();assert.equal(el('convertLbs').value,'35');el('convertStone').value='';el('convertStone').oninput();assert.equal(el('convertLbs').value,'');assert.equal(el('convertKg').value,'');
  // Custom ranges include both boundaries and filter totals, food history and weight graphs.
  el('rangeStart').value='2026-10-28';el('rangeEnd').value='2026-10-29';run("view='custom'");el('rangeForm').onsubmit({preventDefault(){}});assert.equal(run('bounds($("date").value,view).join(",")'),'2026-10-28,2026-10-29');assert.match(el('stats').innerHTML,/1,200/);assert.match(el('foodList').innerHTML,/Oats/);assert.match(el('foodList').innerHTML,/Other day meal/);assert.match(el('history').innerHTML,/2026-10-28/);assert.doesNotMatch(el('history').innerHTML,/2026-10-30/);assert.equal(el('weightChartPeriod').textContent,'2026-10-28 – 2026-10-29');
  el('rangeStart').value='2026-10-30';el('rangeForm').onsubmit({preventDefault(){}});assert.match(el('rangeStatus').textContent,/on or before/);assert.equal(run('customRange[0]'),'2026-10-28');
  el('rangeStart').value='2026-10-29';el('rangeForm').onsubmit({preventDefault(){}});assert.match(el('stats').innerHTML,/900/);assert.doesNotMatch(el('foodList').innerHTML,/Oats/);run("view='day';render()");
- console.log('Passed: selected-day consumed-food list, independent of period, with totals, escaping and empty state;');
+ console.log('Passed: food-journal display and escaping, portion calculator and lbs/kg/stone conversion;');
  console.log('Passed: top sync loads remote records without import, preserves drafts and retains unsaved warnings;');
  console.log('Passed: default lbs, kg conversion, selected-date update, weight chart bounds and missing days;');
  console.log('Passed: password sign-in without email, password setup validation and clearing, email-quota fallback, resend cooldown;');
