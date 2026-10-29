@@ -166,7 +166,6 @@ $('weightRangeForm').onsubmit=e=>{
   if((Date.parse(end+'T12:00:00Z')-Date.parse(start+'T12:00:00Z'))/86400000>3660){$('weightRangeStatus').textContent='Choose a range of up to 10 years.';return;}
   weightRange=[start,end];weightRangeDraft=false;$('weightRangeStatus').textContent='Showing selected dates, inclusive.';renderWeightChart();
 };
-$('resetWeightRange').onclick=()=>{weightRange=null;weightRangeDraft=false;$('weightRangeStatus').textContent='Following the selected view.';renderWeightChart();};
 $('downloadWeightGraph').onclick=async()=>{
   const start=$('weightChart').dataset.start,end=$('weightChart').dataset.end,selected=WEIGHT_METRICS.filter(metric=>$(metric.id).checked);
   $('downloadWeightGraph').disabled=true;$('weightDownloadStatus').textContent='Preparing PNG…';

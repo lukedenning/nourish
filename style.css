@@ -108,3 +108,7 @@ main>.date{width:340px;max-width:100%}.date[data-view="day"] #openJournalCalenda
 
 #overTime>summary{cursor:pointer;list-style:none;margin-bottom:0}#overTime>summary::-webkit-details-marker{display:none}#overTime>summary h2{color:#ff9b3d}#overTime>summary h2::before{content:"▸";margin-right:8px;font-size:12px}#overTime[open]>summary h2::before{content:"▾"}#overTime[open]>summary{margin-bottom:22px}#overTime>summary:focus-visible{outline:3px solid #ffb66e;outline-offset:6px;border-radius:4px}
 @media(max-width:800px){.layout+.weightCard{margin-top:24px}}
+
+#weightRangeForm>label{overflow:visible;min-width:0}#weightRangeForm input{appearance:none;-webkit-appearance:none;display:block;inline-size:100%;min-inline-size:0;max-inline-size:100%;height:42px;padding:10px 8px;border:1px solid #ff9b3d;border-radius:9px;background:#ff9b3d;color:#251a30;box-sizing:border-box;color-scheme:light}#weightRangeForm input::-webkit-date-and-time-value{min-width:0;text-align:left}#weightRangeForm input::-webkit-datetime-edit{min-width:0;padding:0}#weightRangeForm>.primary{grid-column:1/-1}
+
+#overTime>summary h2{font-family:Manrope,system-ui,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.4px;color:#e7eee6}#overTime>summary h2::before{color:#ff9b3d}#overTime:not([open]) #trendPeriod{display:none}#overTime[open]>summary{margin-bottom:14px}
