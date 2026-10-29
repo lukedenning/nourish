@@ -78,3 +78,7 @@ header{flex-wrap:nowrap;gap:12px}header>.brand{flex:0 1 auto;min-width:0}header>
 main>.date{width:340px;max-width:100%}.date[data-view="day"] #openJournalCalendar{font-size:13px;padding-inline:4px}
 
 .dateNavigation #openJournalCalendar{height:44px}
+
+.dateNavigation #openJournalCalendar{font-size:28px}.dateNavigation #openJournalCalendar[data-week="true"],.date[data-view="day"] #openJournalCalendar{font-size:22.75px}
+
+.dateNavigation #openJournalCalendar{padding-block:4px}@media(max-width:420px){.dateNavigation>button:not(#openJournalCalendar){flex-basis:28px}.dateNavigation #openJournalCalendar{padding-inline:2px;letter-spacing:-.4px}}
