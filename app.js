@@ -9,7 +9,7 @@ const nutrition=x=>x&&typeof x.id==='string'&&typeof x.title==='string'&&x.title
 function validate(s){if(!s||s.version!==1||!Array.isArray(s.foods)||!Array.isArray(s.favourites)||!Array.isArray(s.weights)||!s.foods.every(x=>nutrition(x)&&validDate(x.date))||!s.favourites.every(nutrition)||!s.weights.every(x=>validDate(x.date)&&Number.isFinite(x.kg)&&x.kg>0&&x.kg<=2000))throw Error('Invalid journal backup');for(const rows of [s.foods,s.favourites])if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Duplicate entry IDs');if(new Set(s.weights.map(x=>x.date)).size!==s.weights.length)throw Error('Duplicate weigh-in dates');if(s.notes!==undefined&&(s.notes===null||typeof s.notes!=='object'||Array.isArray(s.notes)||!Object.entries(s.notes).every(([date,text])=>validDate(date)&&typeof text==='string'&&text.length<=5000)))throw Error('Invalid daily notes');return s;}
 const emptyJournal=()=>({version:1,foods:[],favourites:[],weights:[],notes:{}});
 let state=emptyJournal(),view='day',cloud=null,loaded=false,busy=false,epoch=0,unsaved=null;
-const TREND_MACROS=[['protein','Protein'],['carbs','Carbs'],['fats','Fats'],['saturates','Saturates'],['fiber','Fiber'],['salt','Salt']];
+const TREND_MACROS=[['protein','Protein'],['carbs','Carbs'],['fats','Fats'],['saturates','Saturates'],['fiber','Fiber'],['salt','Salt'],['calories','Calories']];
 let trendMacroIndex=0,trendRange=null,trendRangeDraft=false,selectedTrendDay=null;
 let cloudSynced=false;
 let emailRetryAt=0,emailInFlight=false,passwordInFlight=false;
@@ -199,14 +199,16 @@ if(!weightDirty)syncWeightForm();if(!notesDirty)syncNoteForm();renderWeightChart
 const [trendStart,trendEnd]=trendRange||(view==='day'?[localDate(new Date(new Date(date+'T12:00:00').setDate(new Date(date+'T12:00:00').getDate()-6))),date]:[start,end]);
 if(selectedTrendDay&&(selectedTrendDay<trendStart||selectedTrendDay>trendEnd))selectedTrendDay=null;
 const chartDays=daysBetween(trendStart,trendEnd),[macroKey,macroLabel]=TREND_MACROS[trendMacroIndex];
+const macroUnit=macroKey==='calories'?'kcal':'g';
+$('trendUnitHint').textContent=(macroKey==='calories'?'Daily kcal':'Daily grams')+' · tap the nutrient to cycle';
 if(!trendRangeDraft){$('trendStart').value=trendStart;$('trendEnd').value=trendEnd;}$('trendPeriod').textContent=`${trendStart} – ${trendEnd}`;
 for(const key of ['cycleTrendMacro','cycleTableMacro']){$(key).textContent=macroLabel;$(key).setAttribute('aria-label',macroLabel+'. Show next nutrient');}
 const dayFoods=new Map(chartDays.map(day=>[day,[]]));for(const food of state.foods)dayFoods.get(food.date)?.push(food);
 const totals=chartDays.map(day=>({date:day,value:dayFoods.get(day).reduce((sum,food)=>sum+(food[macroKey]||0),0)})),max=Math.max(1,...totals.map(t=>t.value));
-$('chart').innerHTML=`<div class="chart selectableChart" role="group" aria-label="Daily ${macroLabel.toLowerCase()} totals in grams; choose a day to filter the table" style="min-width:${Math.max(280,chartDays.length*26)}px">${totals.map((t,i)=>`<button class="trendDay" type="button" data-trend-day="${t.date}" aria-pressed="${selectedTrendDay===t.date}" aria-label="${t.date}: ${fmt(t.value)} g ${macroLabel.toLowerCase()}. Show this day" title="${t.date}: ${fmt(t.value)} g ${macroLabel.toLowerCase()}"><span class="bar" style="height:${t.value/max*100}%"><span>${chartDays.length<10||i%Math.max(5,Math.ceil(chartDays.length/8))===0?Number(t.date.slice(-2)):''}</span></span></button>`).join('')}</div>`;
+$('chart').innerHTML=`<div class="chart selectableChart" role="group" aria-label="Daily ${macroLabel.toLowerCase()} totals in ${macroUnit}; choose a day to filter the table" style="min-width:${Math.max(280,chartDays.length*26)}px">${totals.map((t,i)=>`<button class="trendDay" type="button" data-trend-day="${t.date}" aria-pressed="${selectedTrendDay===t.date}" aria-label="${t.date}: ${fmt(t.value)} ${macroUnit} ${macroLabel.toLowerCase()}. Show this day" title="${t.date}: ${fmt(t.value)} ${macroUnit} ${macroLabel.toLowerCase()}"><span class="bar" style="height:${t.value/max*100}%"><span>${chartDays.length<10||i%Math.max(5,Math.ceil(chartDays.length/8))===0?Number(t.date.slice(-2)):''}</span></span></button>`).join('')}</div>`;
 $('trendDayStatus').textContent=selectedTrendDay?'Showing '+selectedTrendDay+' in the table.':'Select a day on the graph to see its values below.';
 $('showAllTrendDays').hidden=!selectedTrendDay;
-$('history').innerHTML=(selectedTrendDay?[selectedTrendDay]:chartDays.slice().reverse()).map(day=>{const foods=dayFoods.get(day),weight=state.weights.find(w=>w.date===day);return `<tr><td>${day}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+food.calories,0)):'—'}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+(food[macroKey]||0),0))+' g':'—'}</td><td>${weight?weightText(weight.kg):'—'}</td></tr>`;}).join('');}
+$('history').innerHTML=(selectedTrendDay?[selectedTrendDay]:chartDays.slice().reverse()).map(day=>{const foods=dayFoods.get(day),weight=state.weights.find(w=>w.date===day);return `<tr><td>${day}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+food.calories,0)):'—'}</td><td>${foods.length?fmt(foods.reduce((sum,food)=>sum+(food[macroKey]||0),0))+' '+macroUnit:'—'}</td><td>${weight?weightText(weight.kg):'—'}</td></tr>`;}).join('');}
 function cycleTrendMacro(){trendMacroIndex=(trendMacroIndex+1)%TREND_MACROS.length;render();}
 $('cycleTrendMacro').onclick=cycleTrendMacro;$('cycleTableMacro').onclick=cycleTrendMacro;
 function shiftTrendRange(direction){
